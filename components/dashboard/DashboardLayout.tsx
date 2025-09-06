@@ -36,9 +36,10 @@ import {
   LifeBuoy,
   Building2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Edit2
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -74,6 +75,8 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
   const [filterByTag, setFilterByTag] = useState('');
   const [filterByAssignee, setFilterByAssignee] = useState('');
   const [filterByStatus, setFilterByStatus] = useState('');
+  const [filterByDueDate, setFilterByDueDate] = useState('');
+  const [filterByLastEditor, setFilterByLastEditor] = useState('');
   const [createProjectDialogOpen, setCreateProjectDialogOpen] = useState(false);
   const [messageDialogOpen, setMessageDialogOpen] = useState(false);
   const [selectedRecipient, setSelectedRecipient] = useState<{
@@ -99,7 +102,9 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
         sortOrder,
         filterByTag: filterByTag === 'all' ? '' : filterByTag,
         filterByAssignee: filterByAssignee === 'all' ? '' : filterByAssignee,
-        filterByStatus: filterByStatus === 'all' ? '' : filterByStatus
+        filterByStatus: filterByStatus === 'all' ? '' : filterByStatus,
+        filterByDueDate,
+        filterByLastEditor
       });
     }
   };
@@ -111,6 +116,8 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
     setFilterByTag('all');
     setFilterByAssignee('all');
     setFilterByStatus('all');
+    setFilterByDueDate('');
+    setFilterByLastEditor('');
     if (onFiltersChange) {
       onFiltersChange({
         searchQuery: '',
@@ -118,7 +125,9 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
         sortOrder: 'desc',
         filterByTag: '',
         filterByAssignee: '',
-        filterByStatus: ''
+        filterByStatus: '',
+        filterByDueDate: '',
+        filterByLastEditor: ''
       });
     }
   };
@@ -131,9 +140,11 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
         searchQuery,
         sortBy,
         sortOrder: newOrder,
-        filterByTag,
-        filterByAssignee,
-        filterByStatus
+        filterByTag: filterByTag === 'all' ? '' : filterByTag,
+        filterByAssignee: filterByAssignee === 'all' ? '' : filterByAssignee,
+        filterByStatus: filterByStatus === 'all' ? '' : filterByStatus,
+        filterByDueDate,
+        filterByLastEditor
       });
     }
   };
@@ -202,14 +213,14 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
             {isDashboard && (
               <>
                 <Separator className="bg-white/20 my-4" />
-                <div className="space-y-4">
+                <div className="space-y-4 px-2">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-white font-medium">フィルター・ソート</h3>
+                    <h3 className="text-white font-medium text-sm">フィルター・ソート</h3>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={clearFilters}
-                      className="text-gray-400 hover:text-white hover:bg-white/10 text-xs"
+                      className="text-gray-400 hover:text-white hover:bg-white/10 text-xs h-8 px-2"
                     >
                       <Filter className="w-3 h-3 mr-1" />
                       クリア
@@ -217,10 +228,10 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
                   </div>
 
                   {/* Search */}
-                  <div className="space-y-2">
-                    <Label className="text-white text-sm">検索</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-white/90 text-xs">検索</Label>
                     <div className="relative">
-                      <Search className="absolute left-3 top-3 h-3 w-3 text-gray-400" />
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
                       <Input
                         placeholder="プロジェクトを検索..."
                         value={searchQuery}
@@ -228,53 +239,79 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
                           setSearchQuery(e.target.value);
                           handleFilterChange();
                         }}
-                        className="pl-9 bg-white/5 border-white/20 text-white placeholder-gray-400 text-sm"
+                        className="pl-8 h-8 bg-white/5 border-white/20 text-white placeholder-gray-400 text-xs"
                       />
                     </div>
                   </div>
 
                   {/* Sort */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-2">
-                      <Label className="text-white text-xs">ソート項目</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-white/90 text-xs">ソート</Label>
+                    <div className="grid grid-cols-2 gap-2">
                       <Select value={sortBy} onValueChange={(value) => {
                         setSortBy(value);
-                        handleFilterChange();
+                        if (onFiltersChange) {
+                          onFiltersChange({
+                            searchQuery,
+                            sortBy: value,
+                            sortOrder,
+                            filterByTag: filterByTag === 'all' ? '' : filterByTag,
+                            filterByAssignee: filterByAssignee === 'all' ? '' : filterByAssignee,
+                            filterByStatus: filterByStatus === 'all' ? '' : filterByStatus,
+                            filterByDueDate,
+                            filterByLastEditor
+                          });
+                        }
                       }}>
-                        <SelectTrigger className="bg-white/5 border-white/20 text-white text-xs">
+                        <SelectTrigger className="h-8 bg-white/5 border-white/20 text-white text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="updatedAt">
                             <div className="flex items-center">
-                              <Clock className="w-3 h-3 mr-2" />
+                              <Clock className="w-3.5 h-3.5 mr-2" />
                               更新日
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="dueDate">
+                            <div className="flex items-center">
+                              <Calendar className="w-3.5 h-3.5 mr-2" />
+                              期日
                             </div>
                           </SelectItem>
                           <SelectItem value="createdAt">
                             <div className="flex items-center">
-                              <Calendar className="w-3 h-3 mr-2" />
+                              <Calendar className="w-3.5 h-3.5 mr-2" />
                               作成日
                             </div>
                           </SelectItem>
                           <SelectItem value="stage">
                             <div className="flex items-center">
-                              <TrendingUp className="w-3 h-3 mr-2" />
+                              <TrendingUp className="w-3.5 h-3.5 mr-2" />
                               進捗
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="assignee">
+                            <div className="flex items-center">
+                              <User className="w-3.5 h-3.5 mr-2" />
+                              担当者
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="lastEditor">
+                            <div className="flex items-center">
+                              <Edit2 className="w-3.5 h-3.5 mr-2" />
+                              編集者
                             </div>
                           </SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
 
-                    <div className="space-y-2">
-                      <Label className="text-white text-xs">ソート順</Label>
                       <Button
                         variant="outline"
                         onClick={toggleSortOrder}
-                        className="w-full border-white/30 text-white hover:bg-white/10 justify-start text-xs"
+                        className="h-8 border-white/20 text-white hover:bg-white/10 justify-start text-xs"
                       >
-                        <ArrowUpDown className="w-3 h-3 mr-2" />
+                        <ArrowUpDown className="w-3.5 h-3.5 mr-2" />
                         {sortOrder === 'desc' ? '降順' : '昇順'}
                       </Button>
                     </div>
@@ -282,13 +319,13 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
 
                   {/* Filters */}
                   <div className="space-y-3">
-                    <div className="space-y-2">
-                      <Label className="text-white text-xs">タグ</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-white/90 text-xs">タグ</Label>
                       <Select value={filterByTag} onValueChange={(value) => {
                         setFilterByTag(value);
                         handleFilterChange();
                       }}>
-                        <SelectTrigger className="bg-white/5 border-white/20 text-white text-xs">
+                        <SelectTrigger className="h-8 bg-white/5 border-white/20 text-white text-xs">
                           <SelectValue placeholder="すべてのタグ" />
                         </SelectTrigger>
                         <SelectContent>
@@ -296,7 +333,7 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
                           {allTags.map(tag => (
                             <SelectItem key={tag} value={tag}>
                               <div className="flex items-center">
-                                <Tag className="w-3 h-3 mr-2" />
+                                <Tag className="w-3.5 h-3.5 mr-2" />
                                 {tag}
                               </div>
                             </SelectItem>
@@ -305,13 +342,13 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
                       </Select>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label className="text-white text-xs">担当者</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-white/90 text-xs">担当者</Label>
                       <Select value={filterByAssignee} onValueChange={(value) => {
                         setFilterByAssignee(value);
                         handleFilterChange();
                       }}>
-                        <SelectTrigger className="bg-white/5 border-white/20 text-white text-xs">
+                        <SelectTrigger className="h-8 bg-white/5 border-white/20 text-white text-xs">
                           <SelectValue placeholder="すべての担当者" />
                         </SelectTrigger>
                         <SelectContent>
@@ -319,7 +356,7 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
                           {allAssignees.map(assignee => (
                             <SelectItem key={assignee} value={assignee}>
                               <div className="flex items-center">
-                                <User className="w-3 h-3 mr-2" />
+                                <User className="w-3.5 h-3.5 mr-2" />
                                 {assignee}
                               </div>
                             </SelectItem>
@@ -328,13 +365,13 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
                       </Select>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label className="text-white text-xs">ステータス</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-white/90 text-xs">ステータス</Label>
                       <Select value={filterByStatus} onValueChange={(value) => {
                         setFilterByStatus(value);
                         handleFilterChange();
                       }}>
-                        <SelectTrigger className="bg-white/5 border-white/20 text-white text-xs">
+                        <SelectTrigger className="h-8 bg-white/5 border-white/20 text-white text-xs">
                           <SelectValue placeholder="すべてのステータス" />
                         </SelectTrigger>
                         <SelectContent>
@@ -342,7 +379,7 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
                           {allStatuses.map(status => (
                             <SelectItem key={status} value={status}>
                               <div className="flex items-center">
-                                <TrendingUp className="w-3 h-3 mr-2" />
+                                <TrendingUp className="w-3.5 h-3.5 mr-2" />
                                 {status}
                               </div>
                             </SelectItem>
@@ -458,7 +495,19 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
                     <Label className="text-white text-sm">ソート項目</Label>
                     <Select value={sortBy} onValueChange={(value) => {
                       setSortBy(value);
-                      handleFilterChange();
+                      // 即座にフィルターを適用
+                      if (onFiltersChange) {
+                        onFiltersChange({
+                          searchQuery,
+                          sortBy: value,
+                          sortOrder,
+                          filterByTag: filterByTag === 'all' ? '' : filterByTag,
+                          filterByAssignee: filterByAssignee === 'all' ? '' : filterByAssignee,
+                          filterByStatus: filterByStatus === 'all' ? '' : filterByStatus,
+                          filterByDueDate,
+                          filterByLastEditor
+                        });
+                      }
                     }}>
                       <SelectTrigger className="bg-white/5 border-white/20 text-white">
                         <SelectValue />
@@ -470,13 +519,19 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
                             更新日
                           </div>
                         </SelectItem>
+                        <SelectItem value="dueDate">
+                          <div className="flex items-center">
+                            <Calendar className="w-4 h-4 mr-2" />
+                            期日
+                          </div>
+                        </SelectItem>
                         <SelectItem value="createdAt">
                           <div className="flex items-center">
                             <Calendar className="w-4 h-4 mr-2" />
-                            作成日
+                            プロジェクト作成日
                           </div>
                         </SelectItem>
-                        <SelectItem value="stage">
+                          <SelectItem value="stage">
                           <div className="flex items-center">
                             <TrendingUp className="w-4 h-4 mr-2" />
                             進捗
@@ -488,7 +543,12 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
                             担当者
                           </div>
                         </SelectItem>
-                        <SelectItem value="name">プロジェクト名</SelectItem>
+                        <SelectItem value="lastEditor">
+                          <div className="flex items-center">
+                            <Edit2 className="w-4 h-4 mr-2" />
+                            最終編集者
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -650,17 +710,30 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
                       <Label className="text-xs mb-2">ソート</Label>
                       <Select value={sortBy} onValueChange={(value) => {
                         setSortBy(value);
-                        handleFilterChange();
+                        // 即座にフィルターを適用
+                        if (onFiltersChange) {
+                          onFiltersChange({
+                            searchQuery,
+                            sortBy: value,
+                            sortOrder,
+                            filterByTag: filterByTag === 'all' ? '' : filterByTag,
+                            filterByAssignee: filterByAssignee === 'all' ? '' : filterByAssignee,
+                            filterByStatus: filterByStatus === 'all' ? '' : filterByStatus,
+                            filterByDueDate,
+                            filterByLastEditor
+                          });
+                        }
                       }}>
                         <SelectTrigger className="bg-white/5 border-white/20 text-sm">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="updatedAt">更新日</SelectItem>
-                          <SelectItem value="createdAt">作成日</SelectItem>
+                          <SelectItem value="dueDate">期日</SelectItem>
+                          <SelectItem value="createdAt">プロジェクト作成日</SelectItem>
                           <SelectItem value="stage">進捗</SelectItem>
                           <SelectItem value="assignee">担当者</SelectItem>
-                          <SelectItem value="name">プロジェクト名</SelectItem>
+                          <SelectItem value="lastEditor">最終編集者</SelectItem>
                         </SelectContent>
                       </Select>
                       <Button
@@ -886,6 +959,7 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
                   <DropdownMenuItem
                     className="text-red-600 focus:text-red-600"
                     onClick={async () => {
+                      const supabase = createClient();
                       const { error } = await supabase.auth.signOut();
                       if (!error) {
                         router.push('/auth/signin');

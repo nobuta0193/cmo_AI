@@ -23,7 +23,7 @@ const mockProject = {
 };
 
 const workflowStages = [
-  { id: 1, name: '初期情報登録', description: 'プロジェクトの基本情報とデータを登録' },
+  { id: 1, name: '一次情報登録', description: '基本情報とデータを登録' },
   { id: 2, name: '商品情報サマリー', description: '商品の特徴とメリットを整理' },
   { id: 3, name: '教育コンテンツ', description: '顧客教育要素を抽出' },
   { id: 4, name: 'クリエイティブパーツ', description: '売れる要素を自動抽出' },

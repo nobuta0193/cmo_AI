@@ -1,6 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
+import type { Database } from '@/lib/database.types';
+import type { Project } from '@/components/dashboard/ProjectCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,14 +20,35 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-// Mock data for demonstration
+import { createClient } from '@/lib/supabase';
+const supabase = createClient();
+
+// プロジェクト一覧を取得する関数
+const fetchProjects = async () => {
+  try {
+    const response = await fetch('/api/projects');
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Server error:', errorData);
+      throw new Error(errorData.error || 'Failed to fetch projects');
+    }
+    const projects: Project[] = await response.json();
+    console.log('Fetched projects:', projects);
+    return projects;
+  } catch (error) {
+    console.error('Error fetching projects:', error);
+    return [];
+  }
+};
+
+// 古いモックデータ（削除予定）
 const mockProjects = [
   {
     id: 1,
     name: "健康サプリメント春キャンペーン",
     description: "新商品「ビタミンDサプリ」のInstagram Reels用広告台本制作プロジェクト",
     status: "クリエイティブパーツ生成" as const,
-    stage: 3,
+    stage: 3,  // 3/5 完了
     totalStages: 5,
     createdAt: "2024-01-15",
     updatedAt: "2024-01-16",
@@ -39,7 +63,7 @@ const mockProjects = [
     name: "ECサイトセール告知",
     description: "年末セールTikTok広告の台本制作",
     status: "広告台本生成完了" as const,
-    stage: 5,
+    stage: 5,  // 5/5 完了
     totalStages: 5,
     createdAt: "2024-01-10",
     updatedAt: "2024-01-14",
@@ -54,7 +78,7 @@ const mockProjects = [
     name: "B2Bサービス紹介",
     description: "クラウドサービスのYouTube Shorts用台本",
     status: "初期情報登録" as const,
-    stage: 1,
+    stage: 1,  // 1/5 完了
     totalStages: 5,
     createdAt: "2024-01-16",
     updatedAt: "2024-01-16",
@@ -69,7 +93,7 @@ const mockProjects = [
     name: "ファッションブランド新作発表",
     description: "春夏コレクションのInstagram Stories用広告台本制作",
     status: "商品情報サマリー生成" as const,
-    stage: 2,
+    stage: 2,  // 2/5 完了
     totalStages: 5,
     createdAt: "2024-01-12",
     updatedAt: "2024-01-17",
@@ -84,7 +108,7 @@ const mockProjects = [
     name: "フィットネスアプリ訴求",
     description: "新機能追加のTikTok広告台本制作プロジェクト",
     status: "教育コンテンツ生成" as const,
-    stage: 3,
+    stage: 3,  // 3/5 完了
     totalStages: 5,
     createdAt: "2024-01-08",
     updatedAt: "2024-01-15",
@@ -117,7 +141,21 @@ export default function DashboardPage() {
     setFilters(newFilters);
   }, []);
 
-  const filteredAndSortedProjects = mockProjects
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadProjects = async () => {
+      setLoading(true);
+      const data = await fetchProjects();
+      setProjects(data);
+      setLoading(false);
+    };
+
+    loadProjects();
+  }, []);
+
+  const filteredAndSortedProjects = projects
     .filter(project =>
       (project.name.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
        project.description.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
@@ -127,41 +165,55 @@ export default function DashboardPage() {
       (filters.filterByStatus === 'all' || filters.filterByStatus === '' || project.status === filters.filterByStatus)
     )
     .sort((a, b) => {
-      let aValue: any, bValue: any;
+      const sortMultiplier = filters.sortOrder === 'asc' ? 1 : -1;
       
       switch (filters.sortBy) {
-        case 'stage':
-          aValue = a.stage;
-          bValue = b.stage;
-          break;
+        case 'stage': {
+          // 進捗を分数（X/5）の形式で比較
+          const aProgress = a.stage;
+          const bProgress = b.stage;
+          // 進捗の降順でソート（5→4→3→2→1）
+          if (filters.sortOrder === 'desc') {
+            if (aProgress === bProgress) {
+              // 同じ進捗の場合は更新日時の降順
+              const aDate = new Date(a.updatedAt).getTime();
+              const bDate = new Date(b.updatedAt).getTime();
+              return bDate - aDate;
+            }
+            return bProgress - aProgress;
+          } else {
+            // 昇順の場合（1→2→3→4→5）
+            if (aProgress === bProgress) {
+              // 同じ進捗の場合は更新日時の昇順
+              const aDate = new Date(a.updatedAt).getTime();
+              const bDate = new Date(b.updatedAt).getTime();
+              return aDate - bDate;
+            }
+            return aProgress - bProgress;
+          }
+        }
         case 'assignee':
-          aValue = a.assignee;
-          bValue = b.assignee;
-          break;
+          return a.assignee.localeCompare(b.assignee, 'ja') * sortMultiplier;
         case 'lastEditor':
-          aValue = a.lastEditor;
-          bValue = b.lastEditor;
-          break;
-        case 'dueDate':
-          aValue = new Date(a.dueDate);
-          bValue = new Date(b.dueDate);
-          break;
-        case 'createdAt':
-          aValue = new Date(a.createdAt);
-          bValue = new Date(b.createdAt);
-          break;
+          return a.lastEditor.localeCompare(b.lastEditor, 'ja') * sortMultiplier;
+        case 'dueDate': {
+          const aDate = new Date(a.dueDate).getTime();
+          const bDate = new Date(b.dueDate).getTime();
+          return (aDate - bDate) * sortMultiplier;
+        }
+        case 'createdAt': {
+          const aDate = new Date(a.createdAt).getTime();
+          const bDate = new Date(b.createdAt).getTime();
+          return (aDate - bDate) * sortMultiplier;
+        }
         case 'name':
-          aValue = a.name;
-          bValue = b.name;
-          break;
-        default: // updatedAt
-          aValue = new Date(a.updatedAt);
-          bValue = new Date(b.updatedAt);
+          return a.name.localeCompare(b.name, 'ja') * sortMultiplier;
+        default: { // updatedAt
+          const aDate = new Date(a.updatedAt).getTime();
+          const bDate = new Date(b.updatedAt).getTime();
+          return (aDate - bDate) * sortMultiplier;
+        }
       }
-      
-      if (aValue < bValue) return filters.sortOrder === 'asc' ? -1 : 1;
-      if (aValue > bValue) return filters.sortOrder === 'asc' ? 1 : -1;
-      return 0;
     });
 
   const getViewModeIcon = (mode: ViewMode) => {
@@ -297,7 +349,14 @@ export default function DashboardPage() {
             </DropdownMenu>
           </div>
           
-          {filteredAndSortedProjects.length > 0 ? (
+          {loading ? (
+            <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4" />
+                <h3 className="text-lg font-medium text-white mb-2">プロジェクトを読み込み中...</h3>
+              </CardContent>
+            </Card>
+          ) : filteredAndSortedProjects.length > 0 ? (
             <div className={`grid ${getGridClasses(viewMode)} gap-6`}>
               {filteredAndSortedProjects.map((project) => (
                 <ProjectCard key={project.id} project={project} viewMode={viewMode} />
@@ -326,7 +385,13 @@ export default function DashboardPage() {
 
       <CreateProjectDialog 
         open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
+        onOpenChange={(open) => {
+          setShowCreateDialog(open);
+          if (!open) {
+            // プロジェクトリストを更新
+            fetchProjects().then(data => setProjects(data));
+          }
+        }}
       />
     </DashboardLayout>
   );

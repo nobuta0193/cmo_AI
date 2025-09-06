@@ -173,10 +173,6 @@ export function EducationContentStage({ projectId, onComplete }: EducationConten
   const [aiEditPrompt, setAiEditPrompt] = useState('');
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadOrGenerateContent();
-  }, [projectId]);
-
   const loadOrGenerateContent = async () => {
     setLoading(true);
     try {
@@ -282,25 +278,41 @@ export function EducationContentStage({ projectId, onComplete }: EducationConten
     onComplete();
   };
 
-  if (loading && !content) {
+  if (!content) {
     return (
       <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
         <CardHeader>
           <CardTitle className="text-white flex items-center">
             <GraduationCap className="w-5 h-5 mr-2" />
-            教育コンテンツ生成中...
+            教育コンテンツ
           </CardTitle>
           <CardDescription className="text-gray-400">
-            AIが顧客教育要素を抽出してコンテンツを生成しています
+            顧客教育要素を抽出してコンテンツを生成します
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Skeleton className="h-4 w-full bg-white/10" />
-          <Skeleton className="h-4 w-3/4 bg-white/10" />
-          <Skeleton className="h-4 w-1/2 bg-white/10" />
-          <Skeleton className="h-32 w-full bg-white/10" />
-          <Skeleton className="h-4 w-2/3 bg-white/10" />
-          <Skeleton className="h-4 w-full bg-white/10" />
+          {loading ? (
+            <>
+              <Skeleton className="h-4 w-full bg-white/10" />
+              <Skeleton className="h-4 w-3/4 bg-white/10" />
+              <Skeleton className="h-4 w-1/2 bg-white/10" />
+              <Skeleton className="h-32 w-full bg-white/10" />
+              <Skeleton className="h-4 w-2/3 bg-white/10" />
+              <Skeleton className="h-4 w-full bg-white/10" />
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <Button
+                onClick={loadOrGenerateContent}
+                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
+              >
+                コンテンツを生成
+              </Button>
+              <p className="mt-4 text-sm text-gray-400">
+                AIが顧客教育要素を抽出し、効果的なコンテンツを生成します
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     );

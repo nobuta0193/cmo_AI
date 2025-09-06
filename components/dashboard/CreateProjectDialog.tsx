@@ -50,11 +50,25 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
     setLoading(true);
     
     try {
-      // TODO: Implement project creation API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Generate unique project ID
-      const projectId = Date.now();
+      const response = await fetch('/api/projects/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          description: formData.description,
+          tags: formData.tags,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Project creation failed:', error);
+        throw new Error(error.details || error.error || 'プロジェクトの作成に失敗しました');
+      }
+
+      const project = await response.json();
       
       toast({
         title: "プロジェクト作成完了",
@@ -68,7 +82,7 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
       setFormData({ name: '', description: '', tags: [], customTag: '' });
       
       // Navigate to project detail page (5-stage workflow)
-      router.push(`/project/${projectId}`);
+      router.push(`/project/${project.id}`);
     } catch (error) {
       toast({
         title: "エラー",

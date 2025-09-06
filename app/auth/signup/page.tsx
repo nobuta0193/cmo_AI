@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { Sparkles, ArrowLeft, Mail, Lock, User, Building } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function SignUpPage() {
+  const supabase = createClient();
   const [formData, setFormData] = useState({
     name: '',
     email: '',

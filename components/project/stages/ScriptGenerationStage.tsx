@@ -8,9 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Video, RefreshCw, Edit, Eye, EyeOff, Wand2, Copy, Download, MessageSquare, Bot, Image, Sparkles } from 'lucide-react';
+import { Video, RefreshCw, Edit, Eye, EyeOff, Wand2, Copy, Download, MessageSquare, Bot, Image, Sparkles, Trash2 } from 'lucide-react';
 import { BarChart3, TrendingUp, Award } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
@@ -110,13 +109,21 @@ const mockScript2 = `# ショート動画広告台本 - バリエーション B
 4. 特別製法で吸収率向上`;
 
 export function ScriptGenerationStage({ projectId, onComplete }: ScriptGenerationStageProps) {
-  const [scripts, setScripts] = useState({ script1: '', script2: '' });
-  const [selectedScript, setSelectedScript] = useState<'script1' | 'script2'>('script1');
+  interface Script {
+    id: string;
+    title: string;
+    content: string;
+  }
+  
+  const [scripts, setScripts] = useState<Script[]>([]);
+  const [selectedScriptId, setSelectedScriptId] = useState<string | null>(null);
+  const [isScriptGenerated, setIsScriptGenerated] = useState(false);
   const [customInstructions, setCustomInstructions] = useState('');
   const [loading, setLoading] = useState(false);
   const [aiEditLoading, setAiEditLoading] = useState(false);
   const [thumbnailLoading, setThumbnailLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
   const [aiEditMode, setAiEditMode] = useState<'ask' | 'agent'>('ask');
   const [aiEditPrompt, setAiEditPrompt] = useState('');
@@ -129,47 +136,35 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
   }>>([]);
   const [thumbnailPrompt, setThumbnailPrompt] = useState('');
   const [selectedRatio, setSelectedRatio] = useState('9:16');
-  const [evaluations, setEvaluations] = useState<{
-    script1: {
-      expression: number;
-      structure: number;
-      information: number;
-      quality: number;
-      education: number;
-      creative: number;
-      total: number;
-      comment: string;
-    } | null;
-    script2: {
-      expression: number;
-      structure: number;
-      information: number;
-      quality: number;
-      education: number;
-      creative: number;
-      total: number;
-      comment: string;
-    } | null;
-  }>({ script1: null, script2: null });
+  const [evaluation, setEvaluation] = useState<{
+    expression: number;
+    structure: number;
+    information: number;
+    quality: number;
+    education: number;
+    creative: number;
+    total: number;
+    comment: string;
+  } | null>(null);
   const [evaluationLoading, setEvaluationLoading] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadOrGenerateScripts();
-  }, [projectId]);
-
-  const loadOrGenerateScripts = async () => {
+  const loadOrGenerateScript = async () => {
     setLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 3000));
-      setScripts({
-        script1: mockScript1,
-        script2: mockScript2
-      });
+      const newScript: Script = {
+        id: 'script_1',
+        title: 'バリエーション A',
+        content: mockScript1
+      };
+      setScripts([newScript]);
+      setSelectedScriptId(newScript.id);
+      setIsScriptGenerated(true);
       
       toast({
         title: "広告台本生成完了",
-        description: "2つのバリエーションの広告台本を生成しました。",
+        description: "広告台本を生成しました。",
       });
     } catch (error) {
       toast({
@@ -182,19 +177,26 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
     }
   };
 
-  const handleRegenerateSelected = async () => {
+  const handleAddVariation = async () => {
     setLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 2000));
+      const newScript: Script = {
+        id: `script_${scripts.length + 1}`,
+        title: `バリエーション ${String.fromCharCode(65 + scripts.length)}`,
+        content: mockScript2 // 一時的にmockScript2を使用
+      };
+      setScripts(prev => [...prev, newScript]);
+      setSelectedScriptId(newScript.id);
       
       toast({
-        title: "再生成完了",
-        description: `バリエーション${selectedScript === 'script1' ? 'A' : 'B'}を再生成しました。`,
+        title: "バリエーション追加完了",
+        description: "新しいバリエーションを追加しました。",
       });
     } catch (error) {
       toast({
-        title: "再生成エラー",
-        description: "再生成に失敗しました。",
+        title: "生成エラー",
+        description: "バリエーションの追加に失敗しました。",
         variant: "destructive",
       });
     } finally {
@@ -202,14 +204,26 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
     }
   };
 
-  const handleRegenerateBoth = async () => {
+  const handleRegenerate = async () => {
+    if (!selectedScriptId) return;
+    
     setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const updatedScripts = scripts.map(script => {
+        if (script.id === selectedScriptId) {
+          return {
+            ...script,
+            content: mockScript2 // 一時的にmockScript2を使用
+          };
+        }
+        return script;
+      });
+      setScripts(updatedScripts);
       
       toast({
         title: "再生成完了",
-        description: "両方のバリエーションを再生成しました。",
+        description: "選択中のバリエーションを再生成しました。",
       });
     } catch (error) {
       toast({
@@ -244,8 +258,18 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
   };
 
   const handleCopyScript = () => {
-    const currentScript = selectedScript === 'script1' ? scripts.script1 : scripts.script2;
-    navigator.clipboard.writeText(currentScript);
+    if (!selectedScriptId) {
+      toast({
+        title: "エラー",
+        description: "コピーする台本が存在しません。",
+        variant: "destructive",
+      });
+      return;
+    }
+    const script = scripts.find(s => s.id === selectedScriptId);
+    if (!script) return;
+    
+    navigator.clipboard.writeText(script.content);
     toast({
       title: "コピー完了",
       description: "台本をクリップボードにコピーしました。",
@@ -253,12 +277,22 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
   };
 
   const handleExportScript = () => {
-    const currentScript = selectedScript === 'script1' ? scripts.script1 : scripts.script2;
-    const blob = new Blob([currentScript], { type: 'text/markdown' });
+    if (!selectedScriptId) {
+      toast({
+        title: "エラー",
+        description: "エクスポートする台本が存在しません。",
+        variant: "destructive",
+      });
+      return;
+    }
+    const script = scripts.find(s => s.id === selectedScriptId);
+    if (!script) return;
+    
+    const blob = new Blob([script.content], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `script_${selectedScript}.md`;
+    a.download = `script_${script.id}.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -270,6 +304,25 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
     });
   };
 
+  const handleDeleteScript = () => {
+    if (!selectedScriptId) return;
+    
+    const updatedScripts = scripts.filter(script => script.id !== selectedScriptId);
+    if (updatedScripts.length === 0) {
+      setScripts([]);
+      setSelectedScriptId(null);
+      setIsScriptGenerated(false);
+    } else {
+      setScripts(updatedScripts);
+      setSelectedScriptId(updatedScripts[0].id);
+    }
+    
+    toast({
+      title: "削除完了",
+      description: "選択中のバリエーションを削除しました。",
+    });
+  };
+
   const handleCompleteStage = () => {
     toast({
       title: "プロジェクト完了",
@@ -278,7 +331,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
     onComplete();
   };
 
-  const handleEvaluateScript = async (scriptType: 'script1' | 'script2') => {
+  const handleEvaluateScript = async () => {
     setEvaluationLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 3000));
@@ -292,7 +345,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
         education: Math.floor(Math.random() * 3) + 7, // 7-9点
         creative: Math.floor(Math.random() * 3) + 8, // 8-10点
         total: 0,
-        comment: `バリエーション${scriptType === 'script1' ? 'A' : 'B'}の評価結果：\n\n**強み**\n- 魅力的な表現で視聴者の関心を引く構成\n- 論理的な流れで説得力がある\n- 適切な情報量で飽きさせない\n\n**改善点**\n- より具体的な数値データの活用\n- 感情的な訴求をさらに強化\n- クリエイティブな要素の追加検討\n\n**総合評価**\nターゲットに響く効果的な台本として高く評価できます。`
+        comment: `広告台本の評価結果：\n\n**強み**\n- 魅力的な表現で視聴者の関心を引く構成\n- 論理的な流れで説得力がある\n- 適切な情報量で飽きさせない\n\n**改善点**\n- より具体的な数値データの活用\n- 感情的な訴求をさらに強化\n- クリエイティブな要素の追加検討\n\n**総合評価**\nターゲットに響く効果的な台本として高く評価できます。`
       };
       
       mockEvaluation.total = Math.round(
@@ -300,14 +353,11 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
          mockEvaluation.quality + mockEvaluation.education + mockEvaluation.creative) / 6 * 10
       ) / 10;
       
-      setEvaluations(prev => ({
-        ...prev,
-        [scriptType]: mockEvaluation
-      }));
+      setEvaluation(mockEvaluation);
       
       toast({
         title: "評価完了",
-        description: `バリエーション${scriptType === 'script1' ? 'A' : 'B'}の評価が完了しました。`,
+        description: "広告台本の評価が完了しました。",
       });
     } catch (error) {
       toast({
@@ -409,51 +459,98 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
   };
 
   const getCurrentScript = () => {
-    return selectedScript === 'script1' ? scripts.script1 : scripts.script2;
+    if (!selectedScriptId) return '';
+    return scripts.find(s => s.id === selectedScriptId)?.content ?? '';
   };
 
   const updateCurrentScript = (content: string) => {
-    setScripts(prev => ({
-      ...prev,
-      [selectedScript]: content
-    }));
+    if (!selectedScriptId) return;
+    const updatedScripts = scripts.map(script => {
+      if (script.id === selectedScriptId) {
+        return {
+          ...script,
+          content
+        };
+      }
+      return script;
+    });
+    setScripts(updatedScripts);
   };
 
-  if (loading && !scripts.script1) {
+  if (!isScriptGenerated) {
     return (
-      <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center">
-            <Video className="w-5 h-5 mr-2" />
-            広告台本生成中...
-          </CardTitle>
-          <CardDescription className="text-gray-400">
-            AIが2つのバリエーションの広告台本を生成しています
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Skeleton className="h-4 w-full bg-white/10" />
-          <Skeleton className="h-4 w-3/4 bg-white/10" />
-          <Skeleton className="h-4 w-1/2 bg-white/10" />
-          <Skeleton className="h-32 w-full bg-white/10" />
-          <Skeleton className="h-4 w-2/3 bg-white/10" />
-          <Skeleton className="h-4 w-full bg-white/10" />
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center">
+              <Video className="w-5 h-5 mr-2" />
+              広告台本
+            </CardTitle>
+            <CardDescription className="text-gray-400">
+              広告台本を生成します
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {loading ? (
+              <>
+                <Skeleton className="h-4 w-full bg-white/10" />
+                <Skeleton className="h-4 w-3/4 bg-white/10" />
+                <Skeleton className="h-4 w-1/2 bg-white/10" />
+                <Skeleton className="h-32 w-full bg-white/10" />
+                <Skeleton className="h-4 w-2/3 bg-white/10" />
+                <Skeleton className="h-4 w-full bg-white/10" />
+              </>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="instructions" className="text-white">追加指示</Label>
+                  <Textarea
+                    id="instructions"
+                    value={customInstructions}
+                    onChange={(e) => setCustomInstructions(e.target.value)}
+                    placeholder="例: もっとカジュアルなトーンで、20代向けに調整してください"
+                    className="bg-white/5 border-white/20 text-white placeholder-gray-400 min-h-[100px]"
+                    rows={4}
+                  />
+                </div>
+                <Button
+                  onClick={loadOrGenerateScript}
+                  disabled={loading}
+                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      生成中...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      広告台本を生成
+                    </>
+                  )}
+                </Button>
+                <p className="text-sm text-gray-400">
+                  AIが効果的な広告台本を生成します。必要に応じて追加のバリエーションを生成することもできます。
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Custom Instructions */}
       <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
         <CardHeader>
           <CardTitle className="text-white flex items-center">
-            <Wand2 className="w-5 h-5 mr-2" />
-            詳細指示（オプション）
+            <Video className="w-5 h-5 mr-2" />
+            広告台本
           </CardTitle>
           <CardDescription className="text-gray-400">
-            特別な要望がある場合は、こちらに詳細を記入してください
+            広告台本を生成します
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -470,7 +567,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
               />
             </div>
             <Button
-              onClick={handleRegenerateBoth}
+              onClick={handleRegenerate}
               disabled={loading}
               className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0"
             >
@@ -491,10 +588,10 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                 <div>
                   <CardTitle className="text-white flex items-center">
                     <Video className="w-5 h-5 mr-2" />
-                    広告台本（2バリエーション）
+                    広告台本
                   </CardTitle>
                   <CardDescription className="text-gray-400">
-                    異なるアプローチの2つの台本から選択・編集できます
+                    広告台本を編集・管理できます
                   </CardDescription>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -505,18 +602,72 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
               </div>
             </CardHeader>
             <CardContent>
-              <Tabs value={selectedScript} onValueChange={(value) => setSelectedScript(value as 'script1' | 'script2')}>
-                <div className="flex items-center justify-between mb-4">
-                  <TabsList className="grid w-full max-w-md grid-cols-2 bg-white/10">
-                    <TabsTrigger value="script1" className="data-[state=active]:bg-white/20">
-                      バリエーション A
-                    </TabsTrigger>
-                    <TabsTrigger value="script2" className="data-[state=active]:bg-white/20">
-                      バリエーション B
-                    </TabsTrigger>
-                  </TabsList>
+              <div className="space-y-4 mb-4">
+                <div className="flex items-center space-x-2">
+                    {scripts.map((script) => (
+                      <Button
+                        key={script.id}
+                        variant={selectedScriptId === script.id ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSelectedScriptId(script.id)}
+                        className={selectedScriptId === script.id 
+                          ? "bg-white/20 text-white border-0" 
+                          : "border-white/30 text-white hover:bg-white/10"
+                        }
+                      >
+                        <div className="flex items-center gap-2">
+                          {isTitleEditing && selectedScriptId === script.id ? (
+                            <Input
+                              value={script.title}
+                              onChange={(e) => {
+                                const updatedScripts = scripts.map(s => {
+                                  if (s.id === script.id) {
+                                    return {
+                                      ...s,
+                                      title: e.target.value
+                                    };
+                                  }
+                                  return s;
+                                });
+                                setScripts(updatedScripts);
+                              }}
+                              className="h-6 w-40 bg-white/5 border-white/20 text-white"
+                              onBlur={() => setIsTitleEditing(false)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  setIsTitleEditing(false);
+                                }
+                              }}
+                              autoFocus
+                            />
+                          ) : (
+                            <>
+                              {script.title}
+                              {selectedScriptId === script.id && (
+                                <Edit
+                                  className="w-3 h-3 cursor-pointer opacity-50 hover:opacity-100"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsTitleEditing(true);
+                                  }}
+                                />
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </Button>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAddVariation()}
+                      className="border-white/30 text-white hover:bg-white/10"
+                    >
+                      + 新しいバリエーション
+                    </Button>
+                </div>
                   
-                  <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 flex-wrap gap-2">
                     <Button
                       variant="outline"
                       size="sm"
@@ -540,7 +691,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={handleRegenerateSelected}
+                      onClick={handleRegenerate}
                       disabled={loading}
                       className="border-white/30 text-white hover:bg-white/10"
                     >
@@ -565,6 +716,15 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                       <Download className="w-4 h-4 mr-2" />
                       エクスポート
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDeleteScript}
+                      className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      削除
+                    </Button>
                     {isEditing && (
                       <Button
                         size="sm"
@@ -578,7 +738,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleEvaluateScript(selectedScript)}
+                      onClick={handleEvaluateScript}
                       disabled={evaluationLoading}
                       className="border-white/30 text-white hover:bg-white/10"
                     >
@@ -597,46 +757,35 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                   </div>
                 </div>
 
-                <TabsContent value="script1" className="mt-0">
-                  <div className="border border-white/10 rounded-lg p-4 bg-white/5">
-                    {showPreview ? (
-                      <div className="prose prose-invert max-w-none">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {scripts.script1}
-                        </ReactMarkdown>
-                      </div>
-                    ) : (
-                      <textarea
-                        value={scripts.script1}
-                        onChange={(e) => updateCurrentScript(e.target.value)}
-                        className="w-full h-96 bg-transparent text-white resize-none focus:outline-none"
-                        placeholder="広告台本をマークダウン形式で編集..."
-                        disabled={!isEditing}
-                      />
-                    )}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="script2" className="mt-0">
-                  <div className="border border-white/10 rounded-lg p-4 bg-white/5">
-                    {showPreview ? (
-                      <div className="prose prose-invert max-w-none">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {scripts.script2}
-                        </ReactMarkdown>
-                      </div>
-                    ) : (
-                      <textarea
-                        value={scripts.script2}
-                        onChange={(e) => updateCurrentScript(e.target.value)}
-                        className="w-full h-96 bg-transparent text-white resize-none focus:outline-none"
-                        placeholder="広告台本をマークダウン形式で編集..."
-                        disabled={!isEditing}
-                      />
-                    )}
-                  </div>
-                </TabsContent>
-              </Tabs>
+                <div className="border border-white/10 rounded-lg p-4 bg-white/5">
+                  {showPreview ? (
+                    <div className="prose prose-invert max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {selectedScriptId ? scripts.find(s => s.id === selectedScriptId)?.content ?? '' : ''}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <textarea
+                      value={selectedScriptId ? scripts.find(s => s.id === selectedScriptId)?.content ?? '' : ''}
+                      onChange={(e) => {
+                        if (!selectedScriptId) return;
+                        const updatedScripts = scripts.map(script => {
+                          if (script.id === selectedScriptId) {
+                            return {
+                              ...script,
+                              content: e.target.value
+                            };
+                          }
+                          return script;
+                        });
+                        setScripts(updatedScripts);
+                      }}
+                      className="w-full h-96 bg-transparent text-white resize-none focus:outline-none"
+                      placeholder="広告台本をマークダウン形式で編集..."
+                      disabled={!isEditing}
+                    />
+                  )}
+                </div>
 
               {isEditing && (
                 <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
@@ -671,14 +820,14 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                     <SelectTrigger className="bg-white/5 border-white/20 text-white">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ask">
+                    <SelectContent className="bg-gray-800 border-white/10">
+                      <SelectItem value="ask" className="text-white hover:bg-white/10">
                         <div className="flex items-center">
                           <MessageSquare className="w-4 h-4 mr-2" />
                           Askモード（Q&A形式）
                         </div>
                       </SelectItem>
-                      <SelectItem value="agent">
+                      <SelectItem value="agent" className="text-white hover:bg-white/10">
                         <div className="flex items-center">
                           <Bot className="w-4 h-4 mr-2" />
                           Agentモード（自動修正）
@@ -835,12 +984,12 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {evaluations[selectedScript] ? (
+                {evaluation ? (
                   <div className="space-y-4">
                     {/* Total Score */}
                     <div className="text-center p-4 border border-white/10 rounded-lg bg-white/5">
                       <div className="text-2xl font-bold text-white mb-1">
-                        {evaluations[selectedScript]!.total}
+                        {evaluation.total}
                       </div>
                       <div className="text-sm text-gray-400">総合スコア</div>
                     </div>
@@ -848,12 +997,12 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                     {/* Individual Scores */}
                     <div className="space-y-3">
                       {[
-                        { key: 'expression', label: '表現', score: evaluations[selectedScript]!.expression },
-                        { key: 'structure', label: '構成', score: evaluations[selectedScript]!.structure },
-                        { key: 'information', label: '情報量', score: evaluations[selectedScript]!.information },
-                        { key: 'quality', label: '情報の質', score: evaluations[selectedScript]!.quality },
-                        { key: 'education', label: '教育', score: evaluations[selectedScript]!.education },
-                        { key: 'creative', label: 'クリエイティブ', score: evaluations[selectedScript]!.creative }
+                        { key: 'expression', label: '表現', score: evaluation.expression },
+                        { key: 'structure', label: '構成', score: evaluation.structure },
+                        { key: 'information', label: '情報量', score: evaluation.information },
+                        { key: 'quality', label: '情報の質', score: evaluation.quality },
+                        { key: 'education', label: '教育', score: evaluation.education },
+                        { key: 'creative', label: 'クリエイティブ', score: evaluation.creative }
                       ].map((item) => (
                         <div key={item.key} className="flex items-center justify-between">
                           <span className="text-white text-sm">{item.label}</span>
@@ -870,7 +1019,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                       <div className="border border-white/10 rounded-lg p-3 bg-white/5 max-h-40 overflow-y-auto">
                         <div className="prose prose-invert prose-sm max-w-none">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {evaluations[selectedScript]!.comment}
+                            {evaluation.comment}
                           </ReactMarkdown>
                         </div>
                       </div>
@@ -883,7 +1032,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                       台本の評価を開始してください
                     </p>
                     <Button
-                      onClick={() => handleEvaluateScript(selectedScript)}
+                      onClick={handleEvaluateScript}
                       disabled={evaluationLoading}
                       className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0"
                     >
@@ -918,17 +1067,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
       </div>
 
       {/* Additional Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Button
-          onClick={handleRegenerateBoth}
-          disabled={loading}
-          variant="outline"
-          className="border-white/30 text-white hover:bg-white/10"
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          両方のバリエーションを再生成
-        </Button>
-        
+      <div className="flex justify-end">
         <Button
           onClick={handleCompleteStage}
           className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0"
@@ -939,3 +1078,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
     </div>
   );
 }
+
+
+
+

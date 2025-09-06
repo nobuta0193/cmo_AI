@@ -200,10 +200,6 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
   const [aiEditPrompt, setAiEditPrompt] = useState('');
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadOrGenerateContent();
-  }, [projectId]);
-
   const loadOrGenerateContent = async () => {
     setLoading(true);
     try {
@@ -309,25 +305,41 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
     onComplete();
   };
 
-  if (loading && !content) {
+  if (!content) {
     return (
       <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
         <CardHeader>
           <CardTitle className="text-white flex items-center">
             <Sparkles className="w-5 h-5 mr-2" />
-            クリエイティブパーツ生成中...
+            クリエイティブパーツ
           </CardTitle>
           <CardDescription className="text-gray-400">
-            AIが売れる要素を自動抽出してクリエイティブパーツを生成しています
+            売れる要素を自動抽出してクリエイティブパーツを生成します
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Skeleton className="h-4 w-full bg-white/10" />
-          <Skeleton className="h-4 w-3/4 bg-white/10" />
-          <Skeleton className="h-4 w-1/2 bg-white/10" />
-          <Skeleton className="h-32 w-full bg-white/10" />
-          <Skeleton className="h-4 w-2/3 bg-white/10" />
-          <Skeleton className="h-4 w-full bg-white/10" />
+          {loading ? (
+            <>
+              <Skeleton className="h-4 w-full bg-white/10" />
+              <Skeleton className="h-4 w-3/4 bg-white/10" />
+              <Skeleton className="h-4 w-1/2 bg-white/10" />
+              <Skeleton className="h-32 w-full bg-white/10" />
+              <Skeleton className="h-4 w-2/3 bg-white/10" />
+              <Skeleton className="h-4 w-full bg-white/10" />
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <Button
+                onClick={loadOrGenerateContent}
+                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
+              >
+                クリエイティブパーツを生成
+              </Button>
+              <p className="mt-4 text-sm text-gray-400">
+                AIが売れる要素（悩み指摘、ターゲット設定、行動否定、原因解説、商品コンセプト）を自動抽出します
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     );

@@ -15,28 +15,59 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Clock, Users, MoreVertical, Edit2, Copy, Trash2, Play, Calendar, User } from 'lucide-react';
 
-interface ProjectCardProps {
-  project: {
-    id: number;
-    name: string;
-    description: string;
-    status: string;
-    stage: number;
-    totalStages: number;
-    createdAt: string;
-    updatedAt: string;
-    dueDate: string;
-    assignee: string;
-    lastEditor: string;
-    tags: string[];
-    teamMembers: number;
+export interface Project {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  stage: number;
+  totalStages: number;
+  createdAt: string;
+  updatedAt: string;
+  dueDate: string;
+  assignee: string;
+  lastEditor: string;
+  tags: string[];
+  teamMembers: number;
+  scriptVariants?: {
+    count: number;
+    selectedVariant?: string;
+    variants: string[];
+    lastUpdated: string;
   };
+}
+
+interface ProjectCardProps {
+  project: Project;
   viewMode?: 'large' | 'medium' | 'small' | 'list';
 }
 
 export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
   const router = useRouter();
   const progress = (project.stage / project.totalStages) * 100;
+
+  const VariantInfo = ({ variants }: { variants: ProjectCardProps['project']['scriptVariants'] }) => {
+    if (!variants) return null;
+
+    return (
+      <div className="text-xs text-gray-400 mt-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span>
+            バリエーション: {variants.variants.join(', ')}生成済み
+            {variants.count > 0 && ` (${variants.count}個)`}
+          </span>
+          <span className="text-gray-500">|</span>
+          <span>
+            選択中: {variants.selectedVariant || '未選択'}
+          </span>
+          <span className="text-gray-500">|</span>
+          <span>
+            最終更新: {new Date(variants.lastUpdated).toLocaleDateString('ja-JP')}
+          </span>
+        </div>
+      </div>
+    );
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -89,10 +120,14 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
             <div className="flex items-center space-x-4">
               <Badge className={getStatusColor(project.status) + " text-xs"}>
                 {project.status}
+                {project.scriptVariants && project.status === '広告台本生成完了' && ` (${project.scriptVariants.count}バリエーション)`}
               </Badge>
               
               <div className="text-xs text-gray-400 min-w-[80px]">
                 {project.stage}/{project.totalStages} 完了
+                {project.scriptVariants?.selectedVariant && (
+                  <span className="ml-1 text-green-400">| 選択: {project.scriptVariants.selectedVariant}</span>
+                )}
               </div>
               
               <div className="text-xs text-gray-400 min-w-[60px]">
@@ -151,14 +186,25 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
         <CardContent className="space-y-3">
           <Badge className={getStatusColor(project.status) + " text-xs"}>
             {project.status}
+            {project.scriptVariants && project.status === '広告台本生成完了' && ` (${project.scriptVariants.count}バリエーション)`}
           </Badge>
           
           <div className="space-y-1">
             <div className="flex items-center justify-between text-xs">
               <span className="text-gray-400">進捗</span>
-              <span className="text-white">{project.stage}/{project.totalStages}</span>
+              <span className="text-white">
+                {project.stage}/{project.totalStages}
+                {project.scriptVariants?.selectedVariant && (
+                  <span className="ml-1 text-green-400">| 選択: {project.scriptVariants.selectedVariant}</span>
+                )}
+              </span>
             </div>
             <Progress value={progress} className="h-1" />
+            {project.scriptVariants && project.status === '広告台本生成完了' && (
+              <div className="text-xs text-gray-400">
+                バリエーション: {project.scriptVariants.variants.join(', ')}
+              </div>
+            )}
           </div>
 
           <Button
@@ -226,12 +272,19 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
             <div className="flex items-center justify-between">
               <Badge className={getStatusColor(project.status)}>
                 {project.status}
+                {project.scriptVariants && project.status === '広告台本生成完了' && ` (${project.scriptVariants.count}バリエーション)`}
               </Badge>
               <span className="text-xs text-gray-400">
                 {project.stage}/{project.totalStages} 完了
+                {project.scriptVariants?.selectedVariant && (
+                  <span className="ml-1 text-green-400">| 選択: {project.scriptVariants.selectedVariant}</span>
+                )}
               </span>
             </div>
             <Progress value={progress} className="h-2" />
+            {project.scriptVariants && project.status === '広告台本生成完了' && (
+              <VariantInfo variants={project.scriptVariants} />
+            )}
           </div>
 
           <div className="flex items-center justify-between text-sm text-gray-400">
@@ -309,12 +362,19 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
           <div className="flex items-center justify-between">
             <Badge className={getStatusColor(project.status)}>
               {project.status}
+              {project.scriptVariants && project.status === '広告台本生成完了' && ` (${project.scriptVariants.count}バリエーション)`}
             </Badge>
             <span className="text-xs text-gray-400">
               {project.stage}/{project.totalStages} 完了
+              {project.scriptVariants?.selectedVariant && (
+                <span className="ml-1 text-green-400">| 選択: {project.scriptVariants.selectedVariant}</span>
+              )}
             </span>
           </div>
           <Progress value={progress} className="h-2" />
+          {project.scriptVariants && project.status === '広告台本生成完了' && (
+            <VariantInfo variants={project.scriptVariants} />
+          )}
         </div>
 
         {/* Project Details */}

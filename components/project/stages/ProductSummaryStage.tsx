@@ -94,11 +94,6 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
   const [aiEditPrompt, setAiEditPrompt] = useState('');
   const { toast } = useToast();
 
-  useEffect(() => {
-    // Load existing content or generate new one
-    loadOrGenerateContent();
-  }, [projectId]);
-
   const loadOrGenerateContent = async () => {
     setLoading(true);
     try {
@@ -208,25 +203,41 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
     onComplete();
   };
 
-  if (loading && !content) {
+  if (!content) {
     return (
       <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
         <CardHeader>
           <CardTitle className="text-white flex items-center">
             <Package className="w-5 h-5 mr-2" />
-            商品情報サマリー生成中...
+            商品情報サマリー
           </CardTitle>
           <CardDescription className="text-gray-400">
-            AIが登録されたデータを分析して商品情報サマリーを生成しています
+            登録されたデータから商品情報サマリーを生成します
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Skeleton className="h-4 w-full bg-white/10" />
-          <Skeleton className="h-4 w-3/4 bg-white/10" />
-          <Skeleton className="h-4 w-1/2 bg-white/10" />
-          <Skeleton className="h-32 w-full bg-white/10" />
-          <Skeleton className="h-4 w-2/3 bg-white/10" />
-          <Skeleton className="h-4 w-full bg-white/10" />
+          {loading ? (
+            <>
+              <Skeleton className="h-4 w-full bg-white/10" />
+              <Skeleton className="h-4 w-3/4 bg-white/10" />
+              <Skeleton className="h-4 w-1/2 bg-white/10" />
+              <Skeleton className="h-32 w-full bg-white/10" />
+              <Skeleton className="h-4 w-2/3 bg-white/10" />
+              <Skeleton className="h-4 w-full bg-white/10" />
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <Button
+                onClick={loadOrGenerateContent}
+                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
+              >
+                サマリーを生成
+              </Button>
+              <p className="mt-4 text-sm text-gray-400">
+                AIが商品の特徴、メリット、実績、オファー情報を分析・整理します
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     );
