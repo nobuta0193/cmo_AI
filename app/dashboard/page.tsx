@@ -270,7 +270,7 @@ export default function DashboardPage() {
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="border-white/30 text-white hover:bg-white/10">
+                <Button variant="outline" className="bg-white/5 border-white/20 text-white hover:bg-white/10">
                   {getViewModeIcon(viewMode)}
                   <span className="ml-2">{getViewModeLabel(viewMode)}</span>
                   <ChevronDown className="w-4 h-4 ml-2" />

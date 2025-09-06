@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -49,19 +50,47 @@ export default function SignUpPage() {
     setLoading(true);
     
     try {
-      // TODO: Implement Supabase authentication and organization setup
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // ユーザー登録
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.name,
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+
+      if (authError) throw authError;
+
+      toast({
+        title: "確認メールを送信しました",
+        description: "メールを確認してアカウントを有効化してください。",
+      });
+      
+      router.push('/auth/signin');
       
       toast({
         title: "アカウント作成完了",
-        description: "ダッシュボードにリダイレクトします...",
+        description: "確認メールを送信しました。メールを確認してアカウントを有効化してください。",
       });
       
-      router.push('/dashboard');
-    } catch (error) {
+      router.push('/auth/signin');
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      
+      let errorMessage = "アカウントの作成に失敗しました。もう一度お試しください。";
+      
+      if (error.status === 429) {
+        errorMessage = "しばらく時間をおいてから再度お試しください。";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "アカウント作成エラー",
-        description: "アカウントの作成に失敗しました。もう一度お試しください。",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

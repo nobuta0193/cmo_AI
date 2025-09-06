@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -23,8 +24,12 @@ export default function SignInPage() {
     setLoading(true);
     
     try {
-      // TODO: Implement Supabase authentication
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
       
       toast({
         title: "ログイン成功",
@@ -32,10 +37,10 @@ export default function SignInPage() {
       });
       
       router.push('/dashboard');
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "ログインエラー",
-        description: "メールアドレスまたはパスワードが正しくありません。",
+        description: error.message || "メールアドレスまたはパスワードが正しくありません。",
         variant: "destructive",
       });
     } finally {
