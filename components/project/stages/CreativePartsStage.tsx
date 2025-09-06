@@ -12,9 +12,10 @@ import { Sparkles, RefreshCw, Edit, Eye, EyeOff, MessageSquare, Bot } from 'luci
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { createBrowserClient } from '@supabase/ssr';
 
 interface CreativePartsStageProps {
-  projectId: number;
+  projectId: string;
   onComplete: () => void;
 }
 
@@ -192,59 +193,132 @@ const mockCreativeParts = `# クリエイティブパーツ
 
 export function CreativePartsStage({ projectId, onComplete }: CreativePartsStageProps) {
   const [content, setContent] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [regenerateLoading, setRegenerateLoading] = useState(false);
+  const [saveProgressLoading, setSaveProgressLoading] = useState(false);
+  const [completeStageLoading, setCompleteStageLoading] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
   const [aiEditLoading, setAiEditLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
   const [aiEditMode, setAiEditMode] = useState<'ask' | 'agent'>('ask');
   const [aiEditPrompt, setAiEditPrompt] = useState('');
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [contentId, setContentId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const loadOrGenerateContent = async () => {
-    setLoading(true);
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  // コンポーネントマウント時に既存のコンテンツを読み込む
+  useEffect(() => {
+    const loadExistingContent = async () => {
+      if (!projectId) return;
+      
+      setInitialLoading(true);
+      
+      // コンテンツとIDを初期化
+      setContent('');
+      setContentId(null);
+      
+      try {
+        const { data: existingContent, error } = await supabase
+          .from('project_contents')
+          .select('id, content')
+          .eq('project_id', projectId)
+          .eq('stage_type', 'creative_parts')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+          throw error;
+        }
+
+        if (existingContent && existingContent.length > 0) {
+          const latestContent = existingContent[0];
+          setContent(latestContent.content || '');
+          setContentId(latestContent.id);
+        }
+      } catch (error) {
+        console.error('CreativePartsStage: Failed to load existing content:', error);
+        toast({
+          title: "エラー",
+          description: "コンテンツの読み込みに失敗しました。",
+          variant: "destructive",
+        });
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+
+    loadExistingContent();
+  }, [projectId, supabase, toast]);
+
+
+  const handleRegenerate = async () => {
+    setRegenerateLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 2000));
       setContent(mockCreativeParts);
       
       toast({
-        title: "クリエイティブパーツ生成完了",
-        description: "売れる要素を自動抽出してクリエイティブパーツを生成しました。",
+        title: content ? "再生成完了" : "生成完了",
+        description: content ? "クリエイティブパーツを再生成しました。" : "クリエイティブパーツを生成しました。",
       });
     } catch (error) {
       toast({
-        title: "生成エラー",
-        description: "クリエイティブパーツの生成に失敗しました。",
+        title: content ? "再生成エラー" : "生成エラー",
+        description: content ? "再生成に失敗しました。" : "生成に失敗しました。",
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRegenerate = async () => {
-    setLoading(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      toast({
-        title: "再生成完了",
-        description: "クリエイティブパーツを再生成しました。",
-      });
-    } catch (error) {
-      toast({
-        title: "再生成エラー",
-        description: "再生成に失敗しました。",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+      setRegenerateLoading(false);
     }
   };
 
   const handleSave = async () => {
-    setLoading(true);
+    if (!projectId) return;
+    
+    setSaveLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('ユーザーが認証されていません');
+      }
+
+      const contentData = {
+        project_id: projectId,
+        stage_type: 'creative_parts',
+        content: content,
+        status: 'draft',
+        is_ai_generated: true,
+        created_by: user.id,
+        last_edited_by: user.id,
+      };
+
+      if (contentId) {
+        const { error: updateError } = await supabase
+          .from('project_contents')
+          .update({
+            content: content,
+            last_edited_by: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', contentId);
+
+        if (updateError) throw updateError;
+      } else {
+        const { data: newContent, error: insertError } = await supabase
+          .from('project_contents')
+          .insert([contentData])
+          .select('id')
+          .single();
+
+        if (insertError) throw insertError;
+        if (newContent) setContentId(newContent.id);
+      }
+
       setIsEditing(false);
       
       toast({
@@ -252,13 +326,14 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
         description: "変更が保存されました。",
       });
     } catch (error) {
+      console.error('Failed to save:', error);
       toast({
         title: "保存エラー",
-        description: "保存に失敗しました。",
+        description: "保存に失敗しました。もう一度お試しください。",
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setSaveLoading(false);
     }
   };
 
@@ -297,15 +372,138 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
     }
   };
 
-  const handleCompleteStage = () => {
-    toast({
-      title: "ステージ完了",
-      description: "最終ステージに進みます。",
-    });
-    onComplete();
+  const handleSaveProgress = async () => {
+    if (!projectId) return;
+    
+    setSaveProgressLoading(true);
+    try {
+      // まずSupabaseに保存してcontentIdを設定
+      await handleSave();
+      
+      // 次にプロジェクトの進捗を更新
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          stageType: 'creative_parts',
+          content: { creativeParts: content },
+          status: 'クリエイティブパーツ作成中',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('保存に失敗しました');
+      }
+
+      toast({
+        title: "保存完了",
+        description: "進捗が保存されました。",
+      });
+    } catch (error) {
+      console.error('Save error:', error);
+      toast({
+        title: "保存エラー",
+        description: "データの保存に失敗しました。",
+        variant: "destructive",
+      });
+    } finally {
+      setSaveProgressLoading(false);
+    }
   };
 
-  if (!content) {
+  const handleCompleteStage = async () => {
+    if (!content.trim()) {
+      toast({
+        title: "コンテンツが必要です",
+        description: "クリエイティブパーツを生成または編集してください。",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCompleteStageLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('ユーザーが認証されていません');
+      }
+
+      // Save content first
+      const contentData = {
+        project_id: projectId,
+        stage_type: 'creative_parts',
+        content: content,
+        status: 'completed',
+        is_ai_generated: true,
+        created_by: user.id,
+        last_edited_by: user.id,
+      };
+
+      if (contentId) {
+        const { error: updateError } = await supabase
+          .from('project_contents')
+          .update({
+            content: content,
+            status: 'completed',
+            last_edited_by: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', contentId);
+
+        if (updateError) throw updateError;
+      } else {
+        const { data: newContent, error: insertError } = await supabase
+          .from('project_contents')
+          .insert([contentData])
+          .select('id')
+          .single();
+
+        if (insertError) throw insertError;
+        if (newContent) setContentId(newContent.id);
+      }
+
+      // Update project stage using the new API
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          stage: 5,
+          status: '広告台本生成',
+          stageType: 'creative_parts',
+          content: { creativeParts: content },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('ステージの更新に失敗しました');
+      }
+
+      toast({
+        title: "ステージ完了",
+        description: "クリエイティブパーツが保存され、最終ステージに進みます。",
+      });
+      
+      onComplete();
+    } catch (error) {
+      console.error('Complete stage error:', error);
+      toast({
+        title: "エラー",
+        description: "ステージの完了に失敗しました。",
+        variant: "destructive",
+      });
+    } finally {
+      setCompleteStageLoading(false);
+    }
+  };
+
+  // 初期ローディング中の表示
+  if (initialLoading) {
     return (
       <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
         <CardHeader>
@@ -314,36 +512,22 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
             クリエイティブパーツ
           </CardTitle>
           <CardDescription className="text-gray-400">
-            売れる要素を自動抽出してクリエイティブパーツを生成します
+            既存のコンテンツを読み込み中...
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {loading ? (
-            <>
-              <Skeleton className="h-4 w-full bg-white/10" />
-              <Skeleton className="h-4 w-3/4 bg-white/10" />
-              <Skeleton className="h-4 w-1/2 bg-white/10" />
-              <Skeleton className="h-32 w-full bg-white/10" />
-              <Skeleton className="h-4 w-2/3 bg-white/10" />
-              <Skeleton className="h-4 w-full bg-white/10" />
-            </>
-          ) : (
-            <div className="text-center py-8">
-              <Button
-                onClick={loadOrGenerateContent}
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
-              >
-                クリエイティブパーツを生成
-              </Button>
-              <p className="mt-4 text-sm text-gray-400">
-                AIが売れる要素（悩み指摘、ターゲット設定、行動否定、原因解説、商品コンセプト）を自動抽出します
-              </p>
-            </div>
-          )}
+          <Skeleton className="h-4 w-full bg-white/10" />
+          <Skeleton className="h-4 w-3/4 bg-white/10" />
+          <Skeleton className="h-4 w-1/2 bg-white/10" />
+          <Skeleton className="h-32 w-full bg-white/10" />
+          <Skeleton className="h-4 w-2/3 bg-white/10" />
+          <Skeleton className="h-4 w-full bg-white/10" />
         </CardContent>
       </Card>
     );
   }
+
+  // 常に編集画面を表示（判定なし）
 
   return (
     <div className="space-y-6">
@@ -363,9 +547,30 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
                   </CardDescription>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
-                    生成完了
+                  <Badge className={content ? "bg-green-500/20 text-green-300 border-green-500/30" : "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"}>
+                    {content ? "生成完了" : "編集中"}
                   </Badge>
+                  <Button
+                    onClick={handleSaveProgress}
+                    variant="outline"
+                    className="border-blue-500/50 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400"
+                    disabled={saveProgressLoading}
+                  >
+                    {saveProgressLoading ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : null}
+                    進捗を保存
+                  </Button>
+                  <Button
+                    onClick={handleCompleteStage}
+                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 z-20 relative shadow-lg"
+                    disabled={completeStageLoading}
+                  >
+                    {completeStageLoading ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : null}
+                    最終ステージに進む
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -395,22 +600,23 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
                 </div>
                 <div className="flex items-center space-x-2">
                   <Button
-                    variant="outline"
                     size="sm"
                     onClick={handleRegenerate}
-                    disabled={loading}
-                    className="border-white/30 text-white hover:bg-white/10"
+                    disabled={regenerateLoading}
+                    className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
                   >
-                    <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                    再生成
+                    <RefreshCw className={`w-4 h-4 mr-2 ${regenerateLoading ? 'animate-spin' : ''}`} />
+                    {content ? '再生成' : 'コンテンツを生成'}
                   </Button>
                   {isEditing && (
                     <Button
                       size="sm"
                       onClick={handleSave}
-                      disabled={loading}
-                      className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
+                      disabled={saveLoading}
+                      variant="outline"
+                      className="border-green-500/50 text-green-300 hover:bg-green-500/10"
                     >
+                      {saveLoading && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
                       保存
                     </Button>
                   )}
@@ -420,9 +626,17 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
               <div className="border border-white/10 rounded-lg p-4 bg-white/5">
                 {showPreview ? (
                   <div className="prose prose-invert max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {content}
-                    </ReactMarkdown>
+                    {content ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {content}
+                      </ReactMarkdown>
+                    ) : (
+                      <div className="text-center py-8 text-gray-400">
+                        <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p>クリエイティブパーツがまだ生成されていません。</p>
+                        <p className="text-sm mt-2">「コンテンツを生成」ボタンを押してパーツを生成するか、「編集」ボタンを押して手動で作成してください。</p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <textarea
@@ -524,14 +738,18 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
         </div>
       </div>
 
-      <div className="flex justify-end">
-        <Button
-          onClick={handleCompleteStage}
-          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0"
-        >
-          最終ステージに進む
-        </Button>
-      </div>
+      {content && (
+        <div className="flex justify-center">
+          <Button
+            onClick={handleSaveProgress}
+            variant="outline"
+            className="border-blue-500/50 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400"
+            disabled={saveProgressLoading}
+          >
+            {saveProgressLoading ? "保存中..." : "進捗を保存"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

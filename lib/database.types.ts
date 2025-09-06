@@ -86,6 +86,7 @@ export interface Database {
           name: string
           description: string | null
           status: string
+          stage: number
           created_at: string
           updated_at: string
           created_by: string
@@ -97,6 +98,7 @@ export interface Database {
           name: string
           description?: string | null
           status?: string
+          stage?: number
           created_at?: string
           updated_at?: string
           created_by: string
@@ -108,6 +110,7 @@ export interface Database {
           name?: string
           description?: string | null
           status?: string
+          stage?: number
           created_at?: string
           updated_at?: string
           created_by?: string

@@ -56,10 +56,10 @@ interface DashboardLayoutProps {
   onFiltersChange?: (filters: any) => void;
 }
 
-const navigation = [
-  { name: 'ダッシュボード', href: '/dashboard', icon: LayoutDashboard, current: true },
-  { name: 'プロジェクト', href: '/projects', icon: FolderOpen, current: false },
-  { name: '設定', href: '/settings', icon: Settings, current: false },
+const getNavigation = (currentPath: string) => [
+  { name: 'ダッシュボード', href: '/dashboard', icon: LayoutDashboard, current: currentPath === '/dashboard' },
+  { name: 'プロジェクト', href: '/projects', icon: FolderOpen, current: currentPath.startsWith('/project') },
+  { name: '設定', href: '/settings', icon: Settings, current: currentPath === '/settings' },
 ];
 
 const adminNavigation = [
@@ -88,6 +88,7 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
   const pathname = usePathname();
   const isAdmin = true;
   const isDashboard = pathname === '/dashboard';
+  const navigation = getNavigation(pathname);
 
   // Mock data for filters
   const allTags = ['商品情報', 'ユーザー情報', '広告情報', 'B2B', 'B2C', 'EC', '健康・美容'];

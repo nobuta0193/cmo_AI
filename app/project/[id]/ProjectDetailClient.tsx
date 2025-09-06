@@ -8,19 +8,23 @@ import { StageContent } from '@/components/project/StageContent';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Mock project data - will be replaced with Supabase data
-const mockProject = {
-  id: 1,
-  name: "健康サプリメント春キャンペーン",
-  description: "新商品「ビタミンDサプリ」のInstagram Reels用広告台本制作プロジェクト",
-  stage: 3,
-  status: "クリエイティブパーツ生成",
-  tags: ["商品情報", "健康・美容"],
-  createdAt: "2024-01-15",
-  updatedAt: "2024-01-16",
-  organizationId: "org-1",
-  userId: "user-1"
-};
+// プロジェクトの型定義
+interface Project {
+  id: string;
+  name: string;
+  description: string;
+  stage: number;
+  status: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  organizationId: string;
+  userId: string;
+  assignee?: string;
+  createdBy?: string;
+  dueDate?: string;
+  totalStages?: number;
+}
 
 const workflowStages = [
   { id: 1, name: '一次情報登録', description: '基本情報とデータを登録' },
@@ -35,37 +39,67 @@ interface ProjectDetailClientProps {
 }
 
 export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
-  const [project, setProject] = useState(mockProject);
-  const [currentStage, setCurrentStage] = useState(mockProject.stage);
-  const [loading, setLoading] = useState(false);
+  const [project, setProject] = useState<Project | null>(null);
+  const [currentStage, setCurrentStage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // TODO: Load project data from Supabase
     const loadProject = async () => {
       setLoading(true);
+      setError(null);
       try {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        // Project data would be loaded here using projectId
         console.log('Loading project:', projectId);
+        
+        const response = await fetch(`/api/projects/${projectId}`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'プロジェクトの取得に失敗しました');
+        }
+
+        const projectData = await response.json();
+        console.log('Project data loaded:', projectData);
+        
+        setProject(projectData);
+        setCurrentStage(projectData.stage || 1);
       } catch (error) {
         console.error('Failed to load project:', error);
+        setError(error instanceof Error ? error.message : 'プロジェクトの取得に失敗しました');
       } finally {
         setLoading(false);
       }
     };
 
-    loadProject();
+    if (projectId) {
+      loadProject();
+    }
   }, [projectId]);
 
   const handleStageChange = (stage: number) => {
     setCurrentStage(stage);
   };
 
-  const handleStageComplete = (stage: number) => {
-    if (stage === currentStage && stage < 5) {
-      setCurrentStage(stage + 1);
-      setProject(prev => ({ ...prev, stage: stage + 1 }));
+  const handleStageComplete = async () => {
+    // Reload project data to get updated stage
+    if (projectId) {
+      try {
+        const response = await fetch(`/api/projects/${projectId}`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const projectData = await response.json();
+          setProject(projectData);
+          setCurrentStage(projectData.stage || 1);
+        }
+      } catch (error) {
+        console.error('Failed to reload project:', error);
+      }
     }
   };
 
@@ -81,10 +115,59 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
     );
   }
 
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-white mb-2">エラーが発生しました</h2>
+            <p className="text-white/70 mb-4">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              再読み込み
+            </button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!project) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-white mb-2">プロジェクトが見つかりません</h2>
+            <p className="text-white/70">指定されたプロジェクトは存在しないか、アクセス権限がありません。</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const handleProjectUpdate = async () => {
+    // プロジェクト情報を再読み込み
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const projectData = await response.json();
+        setProject(projectData);
+      }
+    } catch (error) {
+      console.error('Failed to reload project:', error);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <ProjectHeader project={project} />
+        <ProjectHeader project={project} onProjectUpdate={handleProjectUpdate} />
         
         <Card className="bg-white/5 border-white/10 backdrop-blur-sm p-6">
           <WorkflowStepper

@@ -46,9 +46,9 @@ export async function POST(request: Request) {
 
     // ユーザーの組織IDを取得
     const { data: userData, error: userError } = await supabase
-      .from('users')
+      .from('user_organizations')
       .select('organization_id')
-      .eq('id', user.id)
+      .eq('user_id', user.id)
       .single();
 
     if (userError) {

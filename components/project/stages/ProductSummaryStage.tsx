@@ -13,9 +13,10 @@ import { Package, RefreshCw, Edit, Eye, EyeOff, MessageSquare, Bot } from 'lucid
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { createBrowserClient } from '@supabase/ssr';
 
 interface ProductSummaryStageProps {
-  projectId: number;
+  projectId: string;
   onComplete: () => void;
 }
 
@@ -86,63 +87,139 @@ const mockGeneratedContent = `# 商品情報サマリー
 
 export function ProductSummaryStage({ projectId, onComplete }: ProductSummaryStageProps) {
   const [content, setContent] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [regenerateLoading, setRegenerateLoading] = useState(false);
+  const [saveProgressLoading, setSaveProgressLoading] = useState(false);
+  const [completeStageLoading, setCompleteStageLoading] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
   const [aiEditLoading, setAiEditLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
   const [aiEditMode, setAiEditMode] = useState<'ask' | 'agent'>('ask');
   const [aiEditPrompt, setAiEditPrompt] = useState('');
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [contentId, setContentId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const loadOrGenerateContent = async () => {
-    setLoading(true);
-    try {
-      // TODO: Check if content already exists in Supabase
-      // If not, generate new content
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate AI generation
-      setContent(mockGeneratedContent);
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  // コンポーネントマウント時に既存のコンテンツを読み込む
+  useEffect(() => {
+    const loadExistingContent = async () => {
+      if (!projectId) {
+        console.log('ProductSummaryStage: No projectId provided');
+        return;
+      }
       
-      toast({
-        title: "商品情報サマリー生成完了",
-        description: "AIが商品情報を分析してサマリーを生成しました。",
-      });
-    } catch (error) {
-      toast({
-        title: "生成エラー",
-        description: "商品情報サマリーの生成に失敗しました。",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+      setInitialLoading(true);
+      
+      // コンテンツとIDを初期化
+      setContent('');
+      setContentId(null);
+      
+      try {
+        const { data: existingContent, error } = await supabase
+          .from('project_contents')
+          .select('id, content')
+          .eq('project_id', projectId)
+          .eq('stage_type', 'product_summary')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+          throw error;
+        }
+
+        if (existingContent && existingContent.length > 0) {
+          const latestContent = existingContent[0];
+          setContent(latestContent.content || '');
+          setContentId(latestContent.id);
+        }
+      } catch (error) {
+        console.error('ProductSummaryStage: Failed to load existing content:', error);
+        toast({
+          title: "エラー",
+          description: "コンテンツの読み込みに失敗しました。",
+          variant: "destructive",
+        });
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+
+    loadExistingContent();
+  }, [projectId, supabase, toast]);
+
 
   const handleRegenerate = async () => {
-    setLoading(true);
+    setRegenerateLoading(true);
     try {
       // TODO: Call AI API to regenerate content
       await new Promise(resolve => setTimeout(resolve, 2000));
+      setContent(mockGeneratedContent);
+      
+      // 生成後に自動的に進捗を保存
+      await handleSaveProgress();
       
       toast({
-        title: "再生成完了",
-        description: "商品情報サマリーを再生成しました。",
+        title: content ? "再生成完了" : "生成完了",
+        description: content ? "商品情報サマリーを再生成しました。" : "商品情報サマリーを生成しました。",
       });
     } catch (error) {
       toast({
-        title: "再生成エラー",
-        description: "再生成に失敗しました。",
+        title: content ? "再生成エラー" : "生成エラー",
+        description: content ? "再生成に失敗しました。" : "生成に失敗しました。",
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setRegenerateLoading(false);
     }
   };
 
   const handleSave = async () => {
-    setLoading(true);
+    if (!projectId) return;
+    
+    setSaveLoading(true);
     try {
-      // TODO: Save content to Supabase
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('ユーザーが認証されていません');
+      }
+
+      const contentData = {
+        project_id: projectId,
+        stage_type: 'product_summary',
+        content: content,
+        status: 'draft',
+        is_ai_generated: true,
+        created_by: user.id,
+        last_edited_by: user.id,
+      };
+
+      if (contentId) {
+        const { error: updateError } = await supabase
+          .from('project_contents')
+          .update({
+            content: content,
+            last_edited_by: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', contentId);
+
+        if (updateError) throw updateError;
+      } else {
+        const { data: newContent, error: insertError } = await supabase
+          .from('project_contents')
+          .insert([contentData])
+          .select('id')
+          .single();
+
+        if (insertError) throw insertError;
+        if (newContent) setContentId(newContent.id);
+      }
+
       setIsEditing(false);
       
       toast({
@@ -150,13 +227,14 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
         description: "変更が保存されました。",
       });
     } catch (error) {
+      console.error('Failed to save:', error);
       toast({
         title: "保存エラー",
-        description: "保存に失敗しました。",
+        description: "保存に失敗しました。もう一度お試しください。",
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setSaveLoading(false);
     }
   };
 
@@ -195,15 +273,132 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
     }
   };
 
-  const handleCompleteStage = () => {
-    toast({
-      title: "ステージ完了",
-      description: "次のステージに進みます。",
-    });
-    onComplete();
+  const handleSaveProgress = async () => {
+    if (!projectId) return;
+    
+    setSaveProgressLoading(true);
+    try {
+      // まずSupabaseに保存してcontentIdを設定
+      await handleSave();
+      
+      // 次にプロジェクトの進捗を更新
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          stageType: 'product_summary',
+          content: { summary: content },
+          status: '商品情報サマリー作成中',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('保存に失敗しました');
+      }
+
+      toast({
+        title: "保存完了",
+        description: "進捗が保存されました。",
+      });
+    } catch (error) {
+      console.error('Save error:', error);
+      toast({
+        title: "保存エラー",
+        description: "データの保存に失敗しました。",
+        variant: "destructive",
+      });
+    } finally {
+      setSaveProgressLoading(false);
+    }
   };
 
-  if (!content) {
+  const handleCompleteStage = async () => {
+    if (!projectId) return;
+    
+    setCompleteStageLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('ユーザーが認証されていません');
+      }
+
+      // Save content first
+      const contentData = {
+        project_id: projectId,
+        stage_type: 'product_summary',
+        content: content,
+        status: 'completed',
+        is_ai_generated: true,
+        created_by: user.id,
+        last_edited_by: user.id,
+      };
+
+      if (contentId) {
+        const { error: updateError } = await supabase
+          .from('project_contents')
+          .update({
+            content: content,
+            status: 'completed',
+            last_edited_by: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', contentId);
+
+        if (updateError) throw updateError;
+      } else {
+        const { data: newContent, error: insertError } = await supabase
+          .from('project_contents')
+          .insert([contentData])
+          .select('id')
+          .single();
+
+        if (insertError) throw insertError;
+        if (newContent) setContentId(newContent.id);
+      }
+
+      // Update project stage using the new API
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          stage: 3,
+          status: '教育コンテンツ',
+          stageType: 'product_summary',
+          content: { summary: content },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('ステージの更新に失敗しました');
+      }
+
+      toast({
+        title: "ステージ完了",
+        description: "内容を保存し、次のステージに進みます。",
+      });
+      
+      onComplete();
+    } catch (error) {
+      console.error('Failed to complete stage:', error);
+      toast({
+        title: "エラー",
+        description: "ステージの完了に失敗しました。もう一度お試しください。",
+        variant: "destructive",
+      });
+    } finally {
+      setCompleteStageLoading(false);
+    }
+  };
+
+
+  // 初期ローディング中の表示
+  if (initialLoading) {
     return (
       <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
         <CardHeader>
@@ -212,36 +407,22 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
             商品情報サマリー
           </CardTitle>
           <CardDescription className="text-gray-400">
-            登録されたデータから商品情報サマリーを生成します
+既存のコンテンツを読み込み中...
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {loading ? (
-            <>
-              <Skeleton className="h-4 w-full bg-white/10" />
-              <Skeleton className="h-4 w-3/4 bg-white/10" />
-              <Skeleton className="h-4 w-1/2 bg-white/10" />
-              <Skeleton className="h-32 w-full bg-white/10" />
-              <Skeleton className="h-4 w-2/3 bg-white/10" />
-              <Skeleton className="h-4 w-full bg-white/10" />
-            </>
-          ) : (
-            <div className="text-center py-8">
-              <Button
-                onClick={loadOrGenerateContent}
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
-              >
-                サマリーを生成
-              </Button>
-              <p className="mt-4 text-sm text-gray-400">
-                AIが商品の特徴、メリット、実績、オファー情報を分析・整理します
-              </p>
-            </div>
-          )}
+          <Skeleton className="h-4 w-full bg-white/10" />
+          <Skeleton className="h-4 w-3/4 bg-white/10" />
+          <Skeleton className="h-4 w-1/2 bg-white/10" />
+          <Skeleton className="h-32 w-full bg-white/10" />
+          <Skeleton className="h-4 w-2/3 bg-white/10" />
+          <Skeleton className="h-4 w-full bg-white/10" />
         </CardContent>
       </Card>
     );
   }
+
+  // 常に編集画面を表示（判定なし）
 
   return (
     <div className="space-y-6">
@@ -260,11 +441,32 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
                     登録されたデータから商品の特徴、メリット、実績、オファー情報を整理
                   </CardDescription>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
-                    生成完了
-                  </Badge>
-                </div>
+                 <div className="flex items-center space-x-2">
+                   <Badge className={content ? "bg-green-500/20 text-green-300 border-green-500/30" : "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"}>
+                     {content ? "生成完了" : "編集中"}
+                   </Badge>
+                   <Button
+                     onClick={handleSaveProgress}
+                     variant="outline"
+                     className="border-blue-500/50 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400"
+                     disabled={saveProgressLoading}
+                   >
+                     {saveProgressLoading ? (
+                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                     ) : null}
+                     進捗を保存
+                   </Button>
+                   <Button
+                     onClick={handleCompleteStage}
+                     className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 z-20 relative shadow-lg"
+                     disabled={completeStageLoading}
+                   >
+                     {completeStageLoading ? (
+                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                     ) : null}
+                     次のステージに進む
+                   </Button>
+                 </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -293,22 +495,23 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
                 </div>
                 <div className="flex items-center space-x-2">
                   <Button
-                    variant="outline"
                     size="sm"
                     onClick={handleRegenerate}
-                    disabled={loading}
-                    className="border-white/30 text-white hover:bg-white/10"
+                    disabled={regenerateLoading}
+                    className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
                   >
-                    <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                    再生成
+                    <RefreshCw className={`w-4 h-4 mr-2 ${regenerateLoading ? 'animate-spin' : ''}`} />
+                    {content ? '再生成' : 'コンテンツを生成'}
                   </Button>
                   {isEditing && (
                     <Button
                       size="sm"
                       onClick={handleSave}
-                      disabled={loading}
-                      className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
+                      disabled={saveLoading}
+                      variant="outline"
+                      className="border-green-500/50 text-green-300 hover:bg-green-500/10"
                     >
+                      {saveLoading && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
                       保存
                     </Button>
                   )}
@@ -318,9 +521,19 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
               <div className="border border-white/10 rounded-lg p-4 bg-white/5">
                 {showPreview ? (
                   <div className="prose prose-invert max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {content}
-                    </ReactMarkdown>
+                    {content ? (
+                      <div>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {content}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-400">
+                        <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p>商品情報サマリーがまだ生成されていません。</p>
+                        <p className="text-sm mt-2">「コンテンツを生成」ボタンを押してサマリーを生成するか、「編集」ボタンを押して手動で作成してください。</p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <textarea
@@ -423,15 +636,30 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
         </div>
       </div>
 
-      {/* Complete Stage Button */}
-      <div className="flex justify-end">
-        <Button
-          onClick={handleCompleteStage}
-          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0"
-        >
-          次のステージに進む
-        </Button>
-      </div>
+       {/* Complete Stage Button */}
+       <div className="flex justify-end space-x-2">
+         <Button
+           onClick={handleSave}
+           variant="outline"
+           className="border-white/30 text-white hover:bg-white/10"
+           disabled={saveLoading}
+         >
+           {saveLoading ? (
+             <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+           ) : null}
+           保存
+         </Button>
+         <Button
+           onClick={handleCompleteStage}
+           className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0"
+           disabled={completeStageLoading}
+         >
+           {completeStageLoading ? (
+             <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+           ) : null}
+           保存して次へ
+         </Button>
+       </div>
     </div>
   );
 }

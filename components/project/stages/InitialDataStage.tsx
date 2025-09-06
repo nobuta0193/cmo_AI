@@ -13,7 +13,7 @@ import { Plus, X, FileText, Upload, Link, Tag, Image, Camera } from 'lucide-reac
 import { useToast } from '@/hooks/use-toast';
 
 interface InitialDataStageProps {
-  projectId: number;
+  projectId: string;
   onComplete: () => void;
 }
 
@@ -43,12 +43,12 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  const addTag = (tag: string, dataType: 'text' | 'pdf' | 'url') => {
+  const addTag = (tag: string, dataType: 'text' | 'pdf' | 'url' | 'image' | 'screenshot') => {
     if (tag && !getCurrentTags(dataType).includes(tag)) {
       if (dataType === 'text') {
         setTextData(prev => ({ ...prev, tags: [...prev.tags, tag] }));
-      } else if (dataType === 'pdf') {
-        setPdfData(prev => ({ ...prev, tags: [...prev.tags, tag] }));
+      } else if (dataType === 'pdf' || dataType === 'image' || dataType === 'screenshot') {
+        setFileData(prev => ({ ...prev, tags: [...prev.tags, tag] }));
       } else {
         setUrlData(prev => ({ ...prev, tags: [...prev.tags, tag] }));
       }
@@ -277,19 +277,19 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
     }
   };
 
-  const removeTag = (tagToRemove: string, dataType: 'text' | 'pdf' | 'url') => {
+  const removeTag = (tagToRemove: string, dataType: 'text' | 'pdf' | 'url' | 'image' | 'screenshot') => {
     if (dataType === 'text') {
       setTextData(prev => ({ ...prev, tags: prev.tags.filter(tag => tag !== tagToRemove) }));
-    } else if (dataType === 'pdf') {
+    } else if (dataType === 'pdf' || dataType === 'image' || dataType === 'screenshot') {
       setFileData(prev => ({ ...prev, tags: prev.tags.filter(tag => tag !== tagToRemove) }));
     } else {
       setUrlData(prev => ({ ...prev, tags: prev.tags.filter(tag => tag !== tagToRemove) }));
     }
   };
 
-  const getCurrentTags = (dataType: 'text' | 'pdf' | 'url') => {
+  const getCurrentTags = (dataType: 'text' | 'pdf' | 'url' | 'image' | 'screenshot') => {
     if (dataType === 'text') return textData.tags;
-    if (dataType === 'pdf') return fileData.tags;
+    if (dataType === 'pdf' || dataType === 'image' || dataType === 'screenshot') return fileData.tags;
     return urlData.tags;
   };
 
@@ -383,7 +383,43 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
     });
   };
 
-  const handleCompleteStage = () => {
+  const handleSaveProgress = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          stageType: 'initial_data',
+          content: dataList,
+          status: '一次情報登録中',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('保存に失敗しました');
+      }
+
+      toast({
+        title: "保存完了",
+        description: "進捗が保存されました。",
+      });
+    } catch (error) {
+      console.error('Save error:', error);
+      toast({
+        title: "保存エラー",
+        description: "データの保存に失敗しました。",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCompleteStage = async () => {
     if (dataList.length === 0) {
       toast({
         title: "データが必要です",
@@ -393,24 +429,77 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
       return;
     }
 
-    toast({
-      title: "ステージ完了",
-      description: "次のステージに進みます。",
-    });
-    onComplete();
+    setLoading(true);
+    try {
+      // まず進捗を保存
+      const saveResponse = await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          stageType: 'initial_data',
+          content: dataList,
+          status: '商品情報サマリー',
+          stage: 2,
+        }),
+      });
+
+      if (!saveResponse.ok) {
+        throw new Error('保存に失敗しました');
+      }
+      
+      toast({
+        title: "ステージ完了",
+        description: "データが保存され、次のステージに進みます。",
+      });
+      
+      onComplete();
+    } catch (error) {
+      console.error('Complete stage error:', error);
+      toast({
+        title: "保存エラー",
+        description: "データの保存に失敗しました。",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="space-y-6">
       <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
         <CardHeader>
-          <CardTitle className="text-white flex items-center">
-            <FileText className="w-5 h-5 mr-2" />
-            一次情報登録
-          </CardTitle>
-          <CardDescription className="text-gray-400">
-            プロジェクトの基本となるデータを登録してください。テキスト直接入力、PDF、URLから情報を取得できます。
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-white flex items-center">
+                <FileText className="w-5 h-5 mr-2" />
+                一次情報登録
+              </CardTitle>
+              <CardDescription className="text-gray-400">
+                プロジェクトの基本となるデータを登録してください。テキスト直接入力、PDF、URLから情報を取得できます。
+              </CardDescription>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                onClick={handleSaveProgress}
+                disabled={loading}
+                variant="outline"
+                className="border-blue-500/50 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400"
+              >
+                {loading ? "保存中..." : "進捗を保存"}
+              </Button>
+              <Button
+                onClick={handleCompleteStage}
+                disabled={dataList.length === 0 || loading}
+                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 z-20 relative shadow-lg"
+              >
+                {loading ? "処理中..." : "次のステージに進む"}
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -1072,16 +1161,19 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
         </Card>
       )}
 
-      {/* Complete Stage Button */}
-      <div className="flex justify-end">
-        <Button
-          onClick={handleCompleteStage}
-          disabled={dataList.length === 0}
-          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0"
-        >
-          次のステージに進む
-        </Button>
-      </div>
+      {/* Save Progress Button */}
+      {dataList.length > 0 && (
+        <div className="flex justify-center">
+          <Button
+            onClick={handleSaveProgress}
+            disabled={loading}
+            variant="outline"
+            className="border-blue-500/50 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400"
+          >
+            {loading ? "保存中..." : "進捗を保存"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -16,7 +16,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 interface ScriptGenerationStageProps {
-  projectId: number;
+  projectId: string;
   onComplete: () => void;
 }
 
@@ -323,12 +323,96 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
     });
   };
 
-  const handleCompleteStage = () => {
-    toast({
-      title: "プロジェクト完了",
-      description: "すべてのステージが完了しました！",
-    });
-    onComplete();
+  const handleSaveProgress = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          stageType: 'script_generation',
+          content: { 
+            scripts: scripts,
+            selectedScript: selectedScriptId,
+            evaluation: evaluation 
+          },
+          status: '広告台本生成中',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('保存に失敗しました');
+      }
+
+      toast({
+        title: "保存完了",
+        description: "進捗が保存されました。",
+      });
+    } catch (error) {
+      console.error('Save error:', error);
+      toast({
+        title: "保存エラー",
+        description: "データの保存に失敗しました。",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCompleteStage = async () => {
+    if (scripts.length === 0) {
+      toast({
+        title: "台本が必要です",
+        description: "広告台本を生成してください。",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          stage: 5, // Keep at stage 5 as this is the final stage
+          status: 'プロジェクト完了',
+          stageType: 'script_generation',
+          content: { 
+            scripts: scripts,
+            selectedScript: selectedScriptId,
+            evaluation: evaluation 
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('プロジェクトの完了に失敗しました');
+      }
+
+      toast({
+        title: "プロジェクト完了",
+        description: "すべてのステージが完了しました！",
+      });
+      
+      onComplete();
+    } catch (error) {
+      console.error('Complete project error:', error);
+      toast({
+        title: "エラー",
+        description: "プロジェクトの完了に失敗しました。",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleEvaluateScript = async () => {
@@ -545,13 +629,34 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
     <div className="space-y-6">
       <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
         <CardHeader>
-          <CardTitle className="text-white flex items-center">
-            <Video className="w-5 h-5 mr-2" />
-            広告台本
-          </CardTitle>
-          <CardDescription className="text-gray-400">
-            広告台本を生成します
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-white flex items-center">
+                <Video className="w-5 h-5 mr-2" />
+                広告台本
+              </CardTitle>
+              <CardDescription className="text-gray-400">
+                広告台本を生成します
+              </CardDescription>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                onClick={handleSaveProgress}
+                variant="outline"
+                className="border-blue-500/50 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400"
+                disabled={loading}
+              >
+                {loading ? "保存中..." : "進捗を保存"}
+              </Button>
+              <Button
+                onClick={handleCompleteStage}
+                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 z-20 relative shadow-lg"
+                disabled={loading}
+              >
+                {loading ? "処理中..." : "プロジェクト完了"}
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -1067,14 +1172,18 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
       </div>
 
       {/* Additional Actions */}
-      <div className="flex justify-end">
-        <Button
-          onClick={handleCompleteStage}
-          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0"
-        >
-          プロジェクト完了
-        </Button>
-      </div>
+      {scripts.length > 0 && (
+        <div className="flex justify-center">
+          <Button
+            onClick={handleSaveProgress}
+            variant="outline"
+            className="border-blue-500/50 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400"
+            disabled={loading}
+          >
+            {loading ? "保存中..." : "進捗を保存"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

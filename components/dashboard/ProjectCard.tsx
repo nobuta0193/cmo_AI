@@ -69,16 +69,16 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
     );
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case '初期情報登録':
-        return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
-      case 'クリエイティブパーツ生成':
-        return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-      case '広告台本生成完了':
-        return 'bg-green-500/20 text-green-300 border-green-500/30';
-      default:
-        return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
+  const getStageColor = (stage: number, totalStages: number) => {
+    const progress = stage / totalStages;
+    if (progress >= 1) {
+      return 'bg-green-500/20 text-green-300 border-green-500/30';
+    } else if (progress >= 0.6) {
+      return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+    } else if (progress >= 0.4) {
+      return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+    } else {
+      return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
     }
   };
 
@@ -108,19 +108,21 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
                 <p className="text-gray-400 text-xs line-clamp-1">{project.description}</p>
               </div>
               
-              <div className="flex flex-wrap gap-1">
-                {project.tags.slice(0, 2).map((tag) => (
-                  <Badge key={tag} variant="secondary" className="bg-white/10 text-white text-xs px-2 py-0">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
+              {project.tags && project.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {project.tags.slice(0, 2).map((tag) => (
+                    <Badge key={tag} className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs px-2 py-0">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center space-x-4">
-              <Badge className={getStatusColor(project.status) + " text-xs"}>
-                {project.status}
-                {project.scriptVariants && project.status === '広告台本生成完了' && ` (${project.scriptVariants.count}バリエーション)`}
+              <Badge className={getStageColor(project.stage, project.totalStages) + " text-xs"}>
+                ステージ {project.stage}/{project.totalStages}
+                {project.scriptVariants && project.stage === project.totalStages && ` (${project.scriptVariants.count}バリエーション)`}
               </Badge>
               
               <div className="text-xs text-gray-400 min-w-[80px]">
@@ -184,9 +186,9 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
         </CardHeader>
 
         <CardContent className="space-y-3">
-          <Badge className={getStatusColor(project.status) + " text-xs"}>
-            {project.status}
-            {project.scriptVariants && project.status === '広告台本生成完了' && ` (${project.scriptVariants.count}バリエーション)`}
+          <Badge className={getStageColor(project.stage, project.totalStages) + " text-xs"}>
+            ステージ {project.stage}/{project.totalStages}
+            {project.scriptVariants && project.stage === project.totalStages && ` (${project.scriptVariants.count}バリエーション)`}
           </Badge>
           
           <div className="space-y-1">
@@ -258,21 +260,23 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
             </DropdownMenu>
           </div>
 
-          <div className="flex flex-wrap gap-2 mt-3">
-            {project.tags.slice(0, 2).map((tag) => (
-              <Badge key={tag} variant="secondary" className="bg-white/10 text-white text-xs">
-                {tag}
-              </Badge>
-            ))}
-          </div>
+          {project.tags && project.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {project.tags.slice(0, 2).map((tag) => (
+                <Badge key={tag} className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
         </CardHeader>
 
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Badge className={getStatusColor(project.status)}>
-                {project.status}
-                {project.scriptVariants && project.status === '広告台本生成完了' && ` (${project.scriptVariants.count}バリエーション)`}
+              <Badge className={getStageColor(project.stage, project.totalStages)}>
+                ステージ {project.stage}/{project.totalStages}
+                {project.scriptVariants && project.stage === project.totalStages && ` (${project.scriptVariants.count}バリエーション)`}
               </Badge>
               <span className="text-xs text-gray-400">
                 {project.stage}/{project.totalStages} 完了
@@ -347,22 +351,24 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
           </DropdownMenu>
         </div>
 
-        <div className="flex flex-wrap gap-2 mt-3">
-          {project.tags.map((tag) => (
-            <Badge key={tag} variant="secondary" className="bg-white/10 text-white text-xs">
-              {tag}
-            </Badge>
-          ))}
-        </div>
+        {project.tags && project.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {project.tags.map((tag) => (
+              <Badge key={tag} className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-4">
         {/* Status and Progress */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Badge className={getStatusColor(project.status)}>
-              {project.status}
-              {project.scriptVariants && project.status === '広告台本生成完了' && ` (${project.scriptVariants.count}バリエーション)`}
+            <Badge className={getStageColor(project.stage, project.totalStages)}>
+              ステージ {project.stage}/{project.totalStages}
+              {project.scriptVariants && project.stage === project.totalStages && ` (${project.scriptVariants.count}バリエーション)`}
             </Badge>
             <span className="text-xs text-gray-400">
               {project.stage}/{project.totalStages} 完了

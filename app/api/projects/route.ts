@@ -39,24 +39,31 @@ export async function GET() {
       );
     }
 
-    // ユーザーの組織IDを取得（RLSが無効なので直接アクセス可能）
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('organization_id, full_name')
+    // ユーザーのプロフィール情報を取得
+    const { data: userProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('full_name')
       .eq('id', user.id)
       .single();
 
-    console.log('User data query result:', { userData, error: userError });
+    // ユーザーの組織IDを取得
+    const { data: userOrg, error: userError } = await supabase
+      .from('user_organizations')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .single();
 
-    if (userError) {
-      console.error('User data fetch error:', userError);
+    console.log('User data query result:', { userProfile, userOrg, profileError, userError });
+
+    if (profileError || userError) {
+      console.error('User data fetch error:', { profileError, userError });
       return NextResponse.json(
-        { error: 'Failed to fetch user data', details: userError.message },
+        { error: 'Failed to fetch user data', details: profileError?.message || userError?.message },
         { status: 500 }
       );
     }
 
-    if (!userData?.organization_id) {
+    if (!userOrg?.organization_id) {
       console.error('User has no organization');
       return NextResponse.json(
         { error: 'User has no organization' },
@@ -67,14 +74,8 @@ export async function GET() {
     // プロジェクト一覧を取得
     const { data: projects, error: projectsError } = await supabase
       .from('projects')
-      .select(`
-        *,
-        assigned_to:users!projects_assigned_to_fkey(
-          full_name
-        )
-      `)
-      .eq('organization_id', userData.organization_id)
-      .eq('status', 'active')
+      .select('*')
+      .eq('organization_id', userOrg.organization_id)
       .order('updated_at', { ascending: false });
 
     console.log('Projects query result:', {
@@ -91,6 +92,42 @@ export async function GET() {
       );
     }
 
+    // すべてのプロジェクトのタグを一度に取得
+    const projectIds = projects.map(p => p.id);
+    const { data: allProjectTags } = await supabase
+      .from('project_tags')
+      .select(`
+        project_id,
+        tags (
+          name
+        )
+      `)
+      .in('project_id', projectIds);
+
+    // プロジェクトごとのタグマップを作成
+    const tagsMap = new Map<string, string[]>();
+    allProjectTags?.forEach(pt => {
+      if (pt.tags?.name) {
+        if (!tagsMap.has(pt.project_id)) {
+          tagsMap.set(pt.project_id, []);
+        }
+        tagsMap.get(pt.project_id)!.push(pt.tags.name);
+      }
+    });
+
+    // 担当者の名前をprofilesテーブルから取得
+    const assigneeIds = projects.map(p => p.assigned_to).filter(Boolean);
+    const { data: assigneeProfiles } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', assigneeIds);
+
+    // 担当者名のマップを作成
+    const assigneeMap = new Map<string, string>();
+    assigneeProfiles?.forEach(profile => {
+      assigneeMap.set(profile.id, profile.full_name || '名前未設定');
+    });
+
     // プロジェクトデータを整形
     const formattedProjects = projects.map(project => ({
       id: project.id,
@@ -102,9 +139,9 @@ export async function GET() {
       createdAt: project.created_at,
       updatedAt: project.updated_at,
       dueDate: project.due_date || project.created_at,
-      assignee: project.assigned_to?.full_name || '未割り当て',
-      lastEditor: userData.full_name,
-      tags: [], // TODO: タグ情報を取得
+      assignee: project.assigned_to ? (assigneeMap.get(project.assigned_to) || '名前未設定') : '未割り当て',
+      lastEditor: userProfile.full_name || '不明',
+      tags: tagsMap.get(project.id) || [],
       teamMembers: 1 // TODO: チームメンバー数を取得
     }));
 
