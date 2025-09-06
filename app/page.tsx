@@ -329,19 +329,13 @@ export default function LandingPage() {
                   <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center mr-3">
                     <span className="text-xs">✓</span>
                   </div>
-                  <span>同時使用：管理者1名 + ゲスト1名</span>
+                  <span>同時使用：1名</span>
                 </div>
                 <div className="flex items-center text-white">
                   <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center mr-3">
                     <span className="text-xs">✓</span>
                   </div>
                   <span>5段階ワークフロー</span>
-                </div>
-                <div className="flex items-center text-white">
-                  <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center mr-3">
-                    <span className="text-xs">✓</span>
-                  </div>
-                  <span>プロジェクト共有</span>
                 </div>
                 <div className="flex items-center text-white">
                   <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center mr-3">
@@ -412,13 +406,25 @@ export default function LandingPage() {
                   </div>
                   <span>詳細レポート機能</span>
                 </div>
+                <div className="flex items-center text-white">
+                  <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center mr-3">
+                    <span className="text-xs">✓</span>
+                  </div>
+                  <span>チャット機能</span>
+                </div>
+                <div className="flex items-center text-white">
+                  <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center mr-3">
+                    <span className="text-xs">✓</span>
+                  </div>
+                  <span>サムネイル生成機能</span>
+                </div>
+                <div className="flex items-center text-white">
+                  <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center mr-3">
+                    <span className="text-xs">✓</span>
+                  </div>
+                  <span>生成文評価機能</span>
+                </div>
               </div>
-              <Button 
-                onClick={() => router.push('/auth/signup')}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 mt-6"
-              >
-                1ヶ月無料で始める
-              </Button>
             </CardContent>
           </Card>
 
@@ -474,15 +480,27 @@ export default function LandingPage() {
                   <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center mr-3">
                     <span className="text-xs">✓</span>
                   </div>
+                  <span>チャット機能</span>
+                </div>
+                <div className="flex items-center text-white">
+                  <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center mr-3">
+                    <span className="text-xs">✓</span>
+                  </div>
+                  <span>サムネイル生成機能</span>
+                </div>
+                <div className="flex items-center text-white">
+                  <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center mr-3">
+                    <span className="text-xs">✓</span>
+                  </div>
+                  <span>生成文評価機能</span>
+                </div>
+                <div className="flex items-center text-white">
+                  <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center mr-3">
+                    <span className="text-xs">✓</span>
+                  </div>
                   <span>API連携</span>
                 </div>
               </div>
-              <Button 
-                onClick={() => router.push('/auth/signup')}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 mt-6"
-              >
-                1ヶ月無料で始める
-              </Button>
             </CardContent>
           </Card>
         </div>

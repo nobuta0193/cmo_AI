@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { Plus, X, FileText, Upload, Link, Tag, Image, Camera } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Plus, X, FileText, Upload, Link, Tag, Image, Camera, Edit, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface InitialDataStageProps {
@@ -41,7 +42,55 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
     updatedAt: string;
   }>>([]);
   const [loading, setLoading] = useState(false);
+  const [editingData, setEditingData] = useState<{
+    id: string;
+    title: string;
+    content: string;
+    tags: string[];
+  } | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          throw new Error('データの取得に失敗しました');
+        }
+
+        const data = await response.json();
+        if (data.contents?.initial_data?.content) {
+          // APIから取得したデータを適切な形式に変換
+          const convertedData = data.contents.initial_data.content.map((item: any) => ({
+            id: item.id,
+            title: item.title,
+            content: item.content,
+            type: item.data_type,
+            tags: [], // 今後タグ機能を実装する場合
+            createdAt: item.created_at,
+            updatedAt: item.updated_at || item.created_at,
+          }));
+          setDataList(convertedData);
+        }
+      } catch (error) {
+        console.error('Initial data fetch error:', error);
+        toast({
+          title: "エラー",
+          description: "一次情報の取得に失敗しました。",
+          variant: "destructive",
+        });
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+
+    fetchInitialData();
+  }, [projectId, toast]);
 
   const addTag = (tag: string, dataType: 'text' | 'pdf' | 'url' | 'image' | 'screenshot') => {
     if (tag && !getCurrentTags(dataType).includes(tag)) {
@@ -246,11 +295,12 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
     setLoading(true);
     try {
       // TODO: ファイルの処理とSupabaseへの保存を実装
+      const fileType = fileData.type === 'pdf' ? 'pdf' : activeTab === 'screenshot' ? 'screenshot' : 'image';
       const newData = {
-        id: Date.now().toString(),
+        id: `${fileType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         title: fileData.title,
         content: `${fileData.type === 'pdf' ? 'PDF' : '画像'}: ${fileData.file.name}`,
-        type: fileData.type === 'pdf' ? 'pdf' as const : activeTab === 'screenshot' ? 'screenshot' as const : 'image' as const,
+        type: fileType as 'pdf' | 'screenshot' | 'image',
         tags: fileData.tags,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -307,12 +357,13 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
     try {
       // TODO: Save to Supabase
       const newData = {
-        id: Date.now().toString(),
+        id: `text_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         title: textData.title,
         content: textData.content,
         type: 'text' as const,
         tags: textData.tags,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
       setDataList(prev => [...prev, newData]);
@@ -349,12 +400,13 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
       await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate scraping
       
       const newData = {
-        id: Date.now().toString(),
+        id: `url_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         title: urlData.title,
         content: `URL: ${urlData.url}\n\n[スクレイピングされたコンテンツがここに表示されます]`,
         type: 'url' as const,
         tags: urlData.tags,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
       setDataList(prev => [...prev, newData]);
@@ -381,6 +433,58 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
       title: "データ削除完了",
       description: "データが削除されました。",
     });
+  };
+
+  const handleEditData = (data: any) => {
+    setEditingData({
+      id: data.id,
+      title: data.title,
+      content: data.content,
+      tags: data.tags
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingData) return;
+    
+    setLoading(true);
+    try {
+      // 更新ロジックをここに実装（現在はフロントエンドのみ）
+      setDataList(prev => prev.map(item => 
+        item.id === editingData.id 
+          ? { ...item, title: editingData.title, content: editingData.content, tags: editingData.tags, updatedAt: new Date().toISOString() }
+          : item
+      ));
+      
+      setIsEditModalOpen(false);
+      setEditingData(null);
+      
+      toast({
+        title: "編集完了",
+        description: "データが更新されました。",
+      });
+    } catch (error) {
+      toast({
+        title: "編集エラー",
+        description: "データの更新に失敗しました。",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addEditTag = (tag: string) => {
+    if (editingData && tag && !editingData.tags.includes(tag)) {
+      setEditingData(prev => prev ? { ...prev, tags: [...prev.tags, tag] } : null);
+    }
+  };
+
+  const removeEditTag = (tag: string) => {
+    if (editingData) {
+      setEditingData(prev => prev ? { ...prev, tags: prev.tags.filter(t => t !== tag) } : null);
+    }
   };
 
   const handleSaveProgress = async () => {
@@ -467,6 +571,17 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
       setLoading(false);
     }
   };
+
+  if (initialLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white/30 mx-auto"></div>
+          <p className="text-white/70">データを読み込んでいます...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -1103,54 +1218,78 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
               <table className="w-full text-sm text-left text-gray-300">
                 <thead className="text-xs uppercase bg-white/5">
                   <tr>
-                    <th scope="col" className="px-6 py-3">タイトル</th>
-                    <th scope="col" className="px-6 py-3">種類</th>
-                    <th scope="col" className="px-6 py-3">タグ</th>
-                    <th scope="col" className="px-6 py-3">作成日</th>
-                    <th scope="col" className="px-6 py-3">最終編集日</th>
-                    <th scope="col" className="px-6 py-3">
-                      <span className="sr-only">操作</span>
+                    <th scope="col" className="px-4 py-3 w-1/6">タイトル</th>
+                    <th scope="col" className="px-4 py-3 w-1/12">種類</th>
+                    <th scope="col" className="px-4 py-3 w-5/12">内容</th>
+                    <th scope="col" className="px-4 py-3 w-1/6">タグ</th>
+                    <th scope="col" className="px-2 py-3 w-1/12 text-xs">更新日</th>
+                    <th scope="col" className="px-2 py-3 w-1/12 text-center">
+                      操作
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {dataList.map((data) => (
-                    <tr key={data.id} className="border-b border-white/10 bg-white/5">
-                      <th scope="row" className="px-6 py-4 font-medium text-white">
-                        {data.title}
-                      </th>
-                      <td className="px-6 py-4">
-                        <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">
+                    <tr key={data.id} className="border-b border-white/10 bg-white/5 hover:bg-white/10 transition-colors">
+                      <td className="px-4 py-4 font-medium text-white">
+                        <div className="max-w-[150px] truncate" title={data.title}>
+                          {data.title}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-xs">
                           {data.type === 'text' ? 'テキスト' : 
                            data.type === 'pdf' ? 'PDF' : 
-                           data.type === 'screenshot' ? 'スクリーンショット' :
-                           data.type === 'url' ? 'URL' : '画像'}
+                           data.type === 'screenshot' ? 'スクショ' :
+                           data.type === 'url' ? 'URL' : 
+                           data.type === 'image' ? '画像' : data.type}
                         </Badge>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          {data.tags.map((tag) => (
+                      <td className="px-4 py-4">
+                        <div className="max-w-[300px] text-gray-300 text-sm">
+                          <div className="line-clamp-2 overflow-hidden leading-relaxed" title={data.content}>
+                            {data.content.length > 100 ? `${data.content.substring(0, 100)}...` : data.content}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-wrap gap-1 max-w-[120px]">
+                          {data.tags.slice(0, 2).map((tag) => (
                             <Badge key={tag} variant="secondary" className="bg-white/10 text-white text-xs">
                               {tag}
                             </Badge>
                           ))}
+                          {data.tags.length > 2 && (
+                            <Badge variant="secondary" className="bg-white/10 text-white text-xs">
+                              +{data.tags.length - 2}
+                            </Badge>
+                          )}
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        {new Date(data.createdAt).toLocaleString('ja-JP')}
+                      <td className="px-2 py-4 text-xs text-gray-400">
+                        {new Date(data.updatedAt).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
                       </td>
-                      <td className="px-6 py-4">
-                        {new Date(data.updatedAt).toLocaleString('ja-JP')}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteData(data.id)}
-                          className="text-gray-400 hover:text-red-400 hover:bg-red-500/10"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
+                      <td className="px-2 py-4 text-center">
+                        <div className="flex justify-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditData(data)}
+                            className="h-8 w-8 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10"
+                            title="編集"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteData(data.id)}
+                            className="h-8 w-8 text-gray-400 hover:text-red-400 hover:bg-red-500/10"
+                            title="削除"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1174,6 +1313,143 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
           </Button>
         </div>
       )}
+
+      {/* Edit Data Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="bg-gray-900 border-white/20 text-white max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>データを編集</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              登録済みデータの内容を編集できます。
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editingData && (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="editTitle" className="text-white">タイトル</Label>
+                <Input
+                  id="editTitle"
+                  value={editingData.title}
+                  onChange={(e) => setEditingData(prev => prev ? { ...prev, title: e.target.value } : null)}
+                  className="bg-white/5 border-white/20 text-white placeholder-gray-400"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="editContent" className="text-white">内容</Label>
+                <Textarea
+                  id="editContent"
+                  value={editingData.content}
+                  onChange={(e) => setEditingData(prev => prev ? { ...prev, content: e.target.value } : null)}
+                  rows={6}
+                  className="bg-white/5 border-white/20 text-white placeholder-gray-400"
+                />
+              </div>
+
+              <div className="space-y-4">
+                <Label className="text-white">タグ</Label>
+                
+                {editingData.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {editingData.tags.map((tag) => (
+                      <Badge key={tag} className="bg-purple-500/20 text-purple-300 border-purple-500/30 pr-1">
+                        {tag}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-4 w-4 ml-1 hover:bg-red-500/20"
+                          onClick={() => removeEditTag(tag)}
+                        >
+                          <X className="h-2 w-2" />
+                        </Button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  {suggestedTags
+                    .filter(tag => !editingData.tags.includes(tag))
+                    .map((tag) => (
+                      <Button
+                        key={tag}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addEditTag(tag)}
+                        className="border-white/30 text-gray-300 hover:bg-purple-500/20 hover:border-purple-500/50 hover:text-purple-300"
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        {tag}
+                      </Button>
+                    ))
+                  }
+                </div>
+
+                <div className="flex gap-2">
+                  <Input
+                    value={customTag}
+                    onChange={(e) => setCustomTag(e.target.value)}
+                    placeholder="カスタムタグを入力"
+                    className="bg-white/5 border-white/20 text-white placeholder-gray-400 flex-1"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addEditTag(customTag);
+                        setCustomTag('');
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      addEditTag(customTag);
+                      setCustomTag('');
+                    }}
+                    disabled={!customTag.trim() || editingData.tags.includes(customTag)}
+                    className="border-white/30 text-white hover:bg-white/10"
+                  >
+                    追加
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setEditingData(null);
+                  }}
+                  className="border-white/30 text-white hover:bg-white/10"
+                >
+                  キャンセル
+                </Button>
+                <Button
+                  onClick={handleSaveEdit}
+                  disabled={loading || !editingData.title.trim() || !editingData.content.trim()}
+                  className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
+                >
+                  {loading ? (
+                    <>
+                      <Save className="w-4 h-4 mr-2 animate-spin" />
+                      保存中...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      保存
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

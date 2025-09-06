@@ -134,7 +134,24 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
 
         if (existingContent && existingContent.length > 0) {
           const latestContent = existingContent[0];
-          setContent(latestContent.content || '');
+          // contentが文字列の場合はそのまま、オブジェクトの場合はJSONパース
+          let contentText = '';
+          if (typeof latestContent.content === 'string') {
+            // まずはそのまま設定してみる
+            contentText = latestContent.content;
+            
+            // JSONオブジェクトとして解析を試みる
+            try {
+              const parsed = JSON.parse(latestContent.content);
+              if (parsed.summary) {
+                contentText = parsed.summary;
+              }
+            } catch {
+              // JSON解析に失敗した場合は、文字列のまま使用
+            }
+          }
+          
+          setContent(contentText);
           setContentId(latestContent.id);
         }
       } catch (error) {
@@ -156,21 +173,36 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
   const handleRegenerate = async () => {
     setRegenerateLoading(true);
     try {
-      // TODO: Call AI API to regenerate content
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setContent(mockGeneratedContent);
+      // AIサマリー生成APIを呼び出し
+      const response = await fetch(`/api/projects/${projectId}/summary`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '生成に失敗しました');
+      }
+
+      const result = await response.json();
+      setContent(result.summary);
+      setContentId(result.contentId);
       
       // 生成後に自動的に進捗を保存
       await handleSaveProgress();
       
       toast({
         title: content ? "再生成完了" : "生成完了",
-        description: content ? "商品情報サマリーを再生成しました。" : "商品情報サマリーを生成しました。",
+        description: content ? `商品情報サマリーを再生成しました。（使用モデル: ${result.model}）` : `商品情報サマリーを生成しました。（使用モデル: ${result.model}）`,
       });
     } catch (error) {
+      console.error('Summary generation error:', error);
       toast({
         title: content ? "再生成エラー" : "生成エラー",
-        description: content ? "再生成に失敗しました。" : "生成に失敗しました。",
+        description: error instanceof Error ? error.message : (content ? "再生成に失敗しました。" : "生成に失敗しました。"),
         variant: "destructive",
       });
     } finally {

@@ -164,6 +164,55 @@ export interface Database {
           last_edited_by?: string | null
         }
       }
+      admin_users: {
+        Row: {
+          id: string
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          created_at?: string
+        }
+      }
+      api_settings: {
+        Row: {
+          id: string
+          openai_api_key: string | null
+          claude_api_key: string | null
+          deepseek_api_key: string | null
+          gemini_api_key: string | null
+          default_model: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          openai_api_key?: string | null
+          claude_api_key?: string | null
+          deepseek_api_key?: string | null
+          gemini_api_key?: string | null
+          default_model?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          openai_api_key?: string | null
+          claude_api_key?: string | null
+          deepseek_api_key?: string | null
+          gemini_api_key?: string | null
+          default_model?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
       tags: {
         Row: {
           id: string

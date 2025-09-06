@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import APISettings from '@/components/admin/APISettings';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -455,32 +456,7 @@ export default function AdminPage() {
             <h2 className="text-xl font-semibold text-white">システム設定</h2>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
-                <CardHeader>
-                  <CardTitle className="text-white">API設定</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-white">OpenAI API Key</Label>
-                    <Input 
-                      type="password" 
-                      placeholder="sk-..." 
-                      className="bg-white/5 border-white/20 text-white"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-white">Claude API Key</Label>
-                    <Input 
-                      type="password" 
-                      placeholder="sk-ant-..." 
-                      className="bg-white/5 border-white/20 text-white"
-                    />
-                  </div>
-                  <Button className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0">
-                    設定を保存
-                  </Button>
-                </CardContent>
-              </Card>
+              <APISettings />
 
               <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
                 <CardHeader>

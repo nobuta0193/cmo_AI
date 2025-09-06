@@ -122,9 +122,17 @@ export async function GET(
       .eq('project_id', params.id)
       .order('created_at', { ascending: false });
 
+    // 一次情報を取得
+    const { data: initialData } = await supabase
+      .from('initial_data')
+      .select('*')
+      .eq('project_id', params.id)
+      .order('created_at', { ascending: false });
+
     console.log('Project contents query result:', {
       contentCount: projectContents?.length || 0,
-      contents: projectContents?.map(c => ({ id: c.id, stage_type: c.stage_type, is_selected: c.is_selected }))
+      contents: projectContents?.map(c => ({ id: c.id, stage_type: c.stage_type, is_selected: c.is_selected })),
+      initialDataCount: initialData?.length || 0
     });
 
     // 各ステージのコンテンツを整理
@@ -159,6 +167,17 @@ export async function GET(
           console.error('Failed to parse content JSON:', parseError, content.content);
         }
       }
+    }
+
+    // 一次情報をコンテンツに追加
+    if (initialData && initialData.length > 0) {
+      contentByStage['initial_data'] = {
+        stageType: 'initial_data',
+        content: initialData,
+        isSelected: true,
+        createdAt: initialData[0].created_at,
+        updatedAt: initialData[0].updated_at
+      };
     }
 
     // プロジェクトデータを整形
@@ -273,8 +292,51 @@ export async function PUT(
       );
     }
 
+    // 一次情報の保存処理
+    if (content && stageType === 'initial_data') {
+      console.log('Saving initial data:', { contentLength: JSON.stringify(content).length });
+
+      try {
+        // 既存の一次情報を削除
+        await supabase
+          .from('initial_data')
+          .delete()
+          .eq('project_id', params.id);
+
+        // 新しい一次情報を挿入
+        const initialDataInserts = content.map((item: any) => ({
+          project_id: params.id,
+          title: item.title,
+          content: item.content,
+          data_type: item.type,
+          created_by: user.id,
+          last_edited_by: user.id,
+        }));
+
+        const { error: initialDataError } = await supabase
+          .from('initial_data')
+          .insert(initialDataInserts);
+
+        if (initialDataError) {
+          console.error('Initial data insert error:', initialDataError);
+          return NextResponse.json(
+            { error: 'Failed to save initial data', details: initialDataError.message },
+            { status: 500 }
+          );
+        }
+
+        console.log('Initial data saved successfully');
+      } catch (error) {
+        console.error('Initial data save error:', error);
+        return NextResponse.json(
+          { error: 'Failed to save initial data', details: error instanceof Error ? error.message : 'Unknown error' },
+          { status: 500 }
+        );
+      }
+    }
+
     // プロジェクトコンテンツの保存（提供されている場合）
-    if (content && stageType) {
+    if (content && stageType && stageType !== 'initial_data') {
       console.log('Saving project content:', { stageType, contentLength: JSON.stringify(content).length });
 
       // stageTypeを統一（script_generation -> script）
@@ -294,7 +356,7 @@ export async function PUT(
         const { error: contentUpdateError } = await supabase
           .from('project_contents')
           .update({
-            content: JSON.stringify(content),
+            content: typeof content === 'string' ? content : JSON.stringify(content),
             updated_at: new Date().toISOString(),
             last_edited_by: user.id,
           })
@@ -312,7 +374,7 @@ export async function PUT(
           .insert({
             project_id: params.id,
             stage_type: normalizedStageType,
-            content: JSON.stringify(content),
+            content: typeof content === 'string' ? content : JSON.stringify(content),
             status: 'draft',
             is_ai_generated: false,
             is_selected: true,

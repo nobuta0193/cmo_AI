@@ -12,6 +12,38 @@ export const createClient = (): SupabaseClient<Database> => {
 export type Database = {
   public: {
     Tables: {
+      api_settings: {
+        Row: {
+          id: string;
+          openai_api_key: string | null;
+          claude_api_key: string | null;
+          deepseek_api_key: string | null;
+          gemini_api_key: string | null;
+          default_model: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          openai_api_key?: string | null;
+          claude_api_key?: string | null;
+          deepseek_api_key?: string | null;
+          gemini_api_key?: string | null;
+          default_model?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          openai_api_key?: string | null;
+          claude_api_key?: string | null;
+          deepseek_api_key?: string | null;
+          gemini_api_key?: string | null;
+          default_model?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       organizations: {
         Row: {
           id: string;
