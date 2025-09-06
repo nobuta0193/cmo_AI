@@ -115,6 +115,52 @@ export async function GET(
       );
     }
 
+    // プロジェクトのコンテンツを取得
+    const { data: projectContents } = await supabase
+      .from('project_contents')
+      .select('*')
+      .eq('project_id', params.id)
+      .order('created_at', { ascending: false });
+
+    console.log('Project contents query result:', {
+      contentCount: projectContents?.length || 0,
+      contents: projectContents?.map(c => ({ id: c.id, stage_type: c.stage_type, is_selected: c.is_selected }))
+    });
+
+    // 各ステージのコンテンツを整理
+    const contentByStage: { [key: string]: any } = {};
+    
+    if (projectContents) {
+      for (const content of projectContents) {
+        try {
+          const parsedContent = content.content ? JSON.parse(content.content) : null;
+          
+          if (!contentByStage[content.stage_type]) {
+            contentByStage[content.stage_type] = {
+              stageType: content.stage_type,
+              content: parsedContent,
+              isSelected: content.is_selected,
+              createdAt: content.created_at,
+              updatedAt: content.updated_at
+            };
+          }
+          
+          // is_selectedがtrueのコンテンツがあれば優先
+          if (content.is_selected) {
+            contentByStage[content.stage_type] = {
+              stageType: content.stage_type,
+              content: parsedContent,
+              isSelected: content.is_selected,
+              createdAt: content.created_at,
+              updatedAt: content.updated_at
+            };
+          }
+        } catch (parseError) {
+          console.error('Failed to parse content JSON:', parseError, content.content);
+        }
+      }
+    }
+
     // プロジェクトデータを整形
     const formattedProject = {
       id: project.id,
@@ -130,7 +176,14 @@ export async function GET(
       createdBy: project.created_by_user?.full_name || '不明',
       organizationId: project.organization_id,
       userId: project.created_by,
-      tags: tags
+      tags: tags,
+      // 各ステージのコンテンツを追加
+      contents: contentByStage,
+      // scriptステージのデータがあれば、それを直接含める（後方互換性のため）
+      ...(contentByStage.script && {
+        stageType: 'script',
+        content: contentByStage.script.content
+      })
     };
 
     console.log('Returning formatted project:', formattedProject);
@@ -222,14 +275,17 @@ export async function PUT(
 
     // プロジェクトコンテンツの保存（提供されている場合）
     if (content && stageType) {
-      console.log('Saving project content:', { stageType, contentLength: content.length });
+      console.log('Saving project content:', { stageType, contentLength: JSON.stringify(content).length });
+
+      // stageTypeを統一（script_generation -> script）
+      const normalizedStageType = stageType === 'script_generation' ? 'script' : stageType;
 
       // 既存のコンテンツを確認
       const { data: existingContent } = await supabase
         .from('project_contents')
         .select('id')
         .eq('project_id', params.id)
-        .eq('stage_type', stageType)
+        .eq('stage_type', normalizedStageType)
         .eq('is_selected', true)
         .single();
 
@@ -246,6 +302,8 @@ export async function PUT(
 
         if (contentUpdateError) {
           console.error('Content update error:', contentUpdateError);
+        } else {
+          console.log('Content updated successfully');
         }
       } else {
         // 新しいコンテンツを作成
@@ -253,7 +311,7 @@ export async function PUT(
           .from('project_contents')
           .insert({
             project_id: params.id,
-            stage_type: stageType,
+            stage_type: normalizedStageType,
             content: JSON.stringify(content),
             status: 'draft',
             is_ai_generated: false,
@@ -264,6 +322,8 @@ export async function PUT(
 
         if (contentInsertError) {
           console.error('Content insert error:', contentInsertError);
+        } else {
+          console.log('Content inserted successfully');
         }
       }
     }

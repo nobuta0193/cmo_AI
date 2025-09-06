@@ -44,7 +44,11 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
   const router = useRouter();
-  const progress = (project.stage / project.totalStages) * 100;
+  // 進捗は「完了したステージ数 / 総ステージ数」で計算
+  // project.stageは現在実行中のステージなので、完了ステージ数は stage - 1
+  // ただし、stage >= 6（全完了）の場合は全ステージ完了とする
+  const completedStages = project.stage >= 6 ? project.totalStages : Math.max(0, project.stage - 1);
+  const progress = (completedStages / project.totalStages) * 100;
 
   const VariantInfo = ({ variants }: { variants: ProjectCardProps['project']['scriptVariants'] }) => {
     if (!variants) return null;
@@ -126,7 +130,7 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
               </Badge>
               
               <div className="text-xs text-gray-400 min-w-[80px]">
-                {project.stage}/{project.totalStages} 完了
+                {completedStages}/{project.totalStages} 完了
                 {project.scriptVariants?.selectedVariant && (
                   <span className="ml-1 text-green-400">| 選択: {project.scriptVariants.selectedVariant}</span>
                 )}
@@ -195,7 +199,7 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
             <div className="flex items-center justify-between text-xs">
               <span className="text-gray-400">進捗</span>
               <span className="text-white">
-                {project.stage}/{project.totalStages}
+                {completedStages}/{project.totalStages}
                 {project.scriptVariants?.selectedVariant && (
                   <span className="ml-1 text-green-400">| 選択: {project.scriptVariants.selectedVariant}</span>
                 )}
@@ -279,7 +283,7 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
                 {project.scriptVariants && project.stage === project.totalStages && ` (${project.scriptVariants.count}バリエーション)`}
               </Badge>
               <span className="text-xs text-gray-400">
-                {project.stage}/{project.totalStages} 完了
+                {completedStages}/{project.totalStages} 完了
                 {project.scriptVariants?.selectedVariant && (
                   <span className="ml-1 text-green-400">| 選択: {project.scriptVariants.selectedVariant}</span>
                 )}
@@ -371,7 +375,7 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
               {project.scriptVariants && project.stage === project.totalStages && ` (${project.scriptVariants.count}バリエーション)`}
             </Badge>
             <span className="text-xs text-gray-400">
-              {project.stage}/{project.totalStages} 完了
+              {completedStages}/{project.totalStages} 完了
               {project.scriptVariants?.selectedVariant && (
                 <span className="ml-1 text-green-400">| 選択: {project.scriptVariants.selectedVariant}</span>
               )}

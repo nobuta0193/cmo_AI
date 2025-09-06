@@ -17,6 +17,10 @@ interface WorkflowStepperProps {
 
 export function WorkflowStepper({ stages, currentStage, completedStage, onStageClick }: WorkflowStepperProps) {
   const getStageStatus = (stageId: number) => {
+    // completedStageが6（全完了）の場合、全てのステージを完了扱いにする
+    if (completedStage >= 6) {
+      return 'completed';
+    }
     if (stageId < completedStage) return 'completed';
     if (stageId === completedStage) return 'current';
     return 'next'; // すべてのステージを次のステップとして表示

@@ -119,9 +119,13 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
   const [selectedScriptId, setSelectedScriptId] = useState<string | null>(null);
   const [isScriptGenerated, setIsScriptGenerated] = useState(false);
   const [customInstructions, setCustomInstructions] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [aiEditLoading, setAiEditLoading] = useState(false);
   const [thumbnailLoading, setThumbnailLoading] = useState(false);
+  const [regenerateLoading, setRegenerateLoading] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [completeLoading, setCompleteLoading] = useState(false);
+  const [addVariationLoading, setAddVariationLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
@@ -149,8 +153,78 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
   const [evaluationLoading, setEvaluationLoading] = useState(false);
   const { toast } = useToast();
 
+  // Supabaseからデータを読み込む useEffect
+  useEffect(() => {
+    const loadProjectData = async () => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const project = await response.json();
+          
+          console.log('Loaded project data:', project);
+          
+          // 新しいAPI形式：contents.scriptまたは直接stageType/contentをチェック
+          let scriptContent = null;
+          
+          // 新しい形式：contents.script
+          if (project.contents && project.contents.script && project.contents.script.content) {
+            scriptContent = project.contents.script.content;
+          }
+          // 旧形式：直接stageType/content（後方互換性）
+          else if (project.stageType === 'script' && project.content) {
+            scriptContent = project.content;
+          }
+          
+          // スクリプトコンテンツが見つかった場合
+          if (scriptContent && scriptContent.scripts && scriptContent.scripts.length > 0) {
+            console.log('Found script content:', scriptContent);
+            
+            // 保存されたデータを復元
+            setScripts(scriptContent.scripts);
+            setSelectedScriptId(scriptContent.selectedScript || scriptContent.scripts[0].id);
+            setIsScriptGenerated(true);
+            
+            // 評価データも復元
+            if (scriptContent.evaluation) {
+              setEvaluation(scriptContent.evaluation);
+            }
+            
+            console.log('Script data restored:', {
+              scriptsCount: scriptContent.scripts.length,
+              selectedScript: scriptContent.selectedScript,
+              hasEvaluation: !!scriptContent.evaluation
+            });
+          } else {
+            console.log('No script content found in project data - initializing with default script');
+            // データがない場合は、デフォルトのスクリプトで初期化
+            const defaultScript: Script = {
+              id: 'script_1',
+              title: 'バリエーション A',
+              content: mockScript1
+            };
+            setScripts([defaultScript]);
+            setSelectedScriptId(defaultScript.id);
+            setIsScriptGenerated(true);
+          }
+        } else {
+          console.error('Failed to load project data:', response.status);
+        }
+      } catch (error) {
+        console.error('データの読み込みエラー:', error);
+      } finally {
+        setIsInitialLoading(false);
+      }
+    };
+
+    loadProjectData();
+  }, [projectId]);
+
   const loadOrGenerateScript = async () => {
-    setLoading(true);
+    setRegenerateLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 3000));
       const newScript: Script = {
@@ -158,9 +232,13 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
         title: 'バリエーション A',
         content: mockScript1
       };
-      setScripts([newScript]);
+      const newScripts = [newScript];
+      setScripts(newScripts);
       setSelectedScriptId(newScript.id);
       setIsScriptGenerated(true);
+      
+      // 生成後、自動的にSupabaseに保存
+      await saveContentToSupabase(newScripts, newScript.id, null);
       
       toast({
         title: "広告台本生成完了",
@@ -173,12 +251,12 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setRegenerateLoading(false);
     }
   };
 
   const handleAddVariation = async () => {
-    setLoading(true);
+    setAddVariationLoading(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 2000));
       const newScript: Script = {
@@ -186,8 +264,12 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
         title: `バリエーション ${String.fromCharCode(65 + scripts.length)}`,
         content: mockScript2 // 一時的にmockScript2を使用
       };
-      setScripts(prev => [...prev, newScript]);
+      const updatedScripts = [...scripts, newScript];
+      setScripts(updatedScripts);
       setSelectedScriptId(newScript.id);
+      
+      // 自動保存
+      await saveContentToSupabase(updatedScripts, newScript.id, evaluation);
       
       toast({
         title: "バリエーション追加完了",
@@ -200,46 +282,46 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setAddVariationLoading(false);
     }
   };
 
   const handleRegenerate = async () => {
-    if (!selectedScriptId) return;
-    
-    setLoading(true);
+    setRegenerateLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      const updatedScripts = scripts.map(script => {
-        if (script.id === selectedScriptId) {
-          return {
-            ...script,
-            content: mockScript2 // 一時的にmockScript2を使用
-          };
-        }
-        return script;
-      });
-      setScripts(updatedScripts);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      const newScript: Script = {
+        id: 'script_1',
+        title: 'バリエーション A',
+        content: mockScript1
+      };
+      const newScripts = [newScript];
+      setScripts(newScripts);
+      setSelectedScriptId(newScript.id);
+      setIsScriptGenerated(true);
+      
+      // 自動保存
+      await saveContentToSupabase(newScripts, newScript.id, null);
       
       toast({
-        title: "再生成完了",
-        description: "選択中のバリエーションを再生成しました。",
+        title: "広告台本生成完了",
+        description: "広告台本を生成しました。",
       });
     } catch (error) {
       toast({
-        title: "再生成エラー",
-        description: "再生成に失敗しました。",
+        title: "生成エラー",
+        description: "広告台本の生成に失敗しました。",
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setRegenerateLoading(false);
     }
   };
 
   const handleSave = async () => {
-    setLoading(true);
+    setSaveLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await saveContentToSupabase(scripts, selectedScriptId, evaluation);
       setIsEditing(false);
       
       toast({
@@ -253,7 +335,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setSaveLoading(false);
     }
   };
 
@@ -323,29 +405,36 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
     });
   };
 
-  const handleSaveProgress = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/projects/${projectId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
+  // Supabaseへの保存用ヘルパー関数
+  const saveContentToSupabase = async (scriptsToSave: Script[], selectedId: string | null, evaluationToSave: any) => {
+    const response = await fetch(`/api/projects/${projectId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        stageType: 'script_generation', // APIで'script'に正規化される
+        content: { 
+          scripts: scriptsToSave,
+          selectedScript: selectedId,
+          evaluation: evaluationToSave 
         },
-        credentials: 'include',
-        body: JSON.stringify({
-          stageType: 'script_generation',
-          content: { 
-            scripts: scripts,
-            selectedScript: selectedScriptId,
-            evaluation: evaluation 
-          },
-          status: '広告台本生成中',
-        }),
-      });
+        status: '広告台本生成中',
+      }),
+    });
 
-      if (!response.ok) {
-        throw new Error('保存に失敗しました');
-      }
+    if (!response.ok) {
+      throw new Error('保存に失敗しました');
+    }
+    
+    return response.json();
+  };
+
+  const handleSaveProgress = async () => {
+    setSaveLoading(true);
+    try {
+      await saveContentToSupabase(scripts, selectedScriptId, evaluation);
 
       toast({
         title: "保存完了",
@@ -359,7 +448,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setSaveLoading(false);
     }
   };
 
@@ -373,8 +462,12 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
       return;
     }
 
-    setLoading(true);
+    setCompleteLoading(true);
     try {
+      // まずコンテンツを保存
+      await saveContentToSupabase(scripts, selectedScriptId, evaluation);
+      
+      // 次にプロジェクトステージを完了に更新
       const response = await fetch(`/api/projects/${projectId}`, {
         method: 'PUT',
         headers: {
@@ -382,14 +475,8 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
         },
         credentials: 'include',
         body: JSON.stringify({
-          stage: 5, // Keep at stage 5 as this is the final stage
+          stage: 6, // 全ステージ完了状態として6に設定
           status: 'プロジェクト完了',
-          stageType: 'script_generation',
-          content: { 
-            scripts: scripts,
-            selectedScript: selectedScriptId,
-            evaluation: evaluation 
-          },
         }),
       });
 
@@ -411,7 +498,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setCompleteLoading(false);
     }
   };
 
@@ -561,7 +648,8 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
     setScripts(updatedScripts);
   };
 
-  if (!isScriptGenerated) {
+  // 初期読み込み中の表示
+  if (isInitialLoading) {
     return (
       <div className="space-y-6">
         <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
@@ -571,92 +659,35 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
               広告台本
             </CardTitle>
             <CardDescription className="text-gray-400">
-              広告台本を生成します
+              データを読み込み中...
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {loading ? (
-              <>
-                <Skeleton className="h-4 w-full bg-white/10" />
-                <Skeleton className="h-4 w-3/4 bg-white/10" />
-                <Skeleton className="h-4 w-1/2 bg-white/10" />
-                <Skeleton className="h-32 w-full bg-white/10" />
-                <Skeleton className="h-4 w-2/3 bg-white/10" />
-                <Skeleton className="h-4 w-full bg-white/10" />
-              </>
-            ) : (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="instructions" className="text-white">追加指示</Label>
-                  <Textarea
-                    id="instructions"
-                    value={customInstructions}
-                    onChange={(e) => setCustomInstructions(e.target.value)}
-                    placeholder="例: もっとカジュアルなトーンで、20代向けに調整してください"
-                    className="bg-white/5 border-white/20 text-white placeholder-gray-400 min-h-[100px]"
-                    rows={4}
-                  />
-                </div>
-                <Button
-                  onClick={loadOrGenerateScript}
-                  disabled={loading}
-                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
-                >
-                  {loading ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      生成中...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      広告台本を生成
-                    </>
-                  )}
-                </Button>
-                <p className="text-sm text-gray-400">
-                  AIが効果的な広告台本を生成します。必要に応じて追加のバリエーションを生成することもできます。
-                </p>
-              </div>
-            )}
+            <Skeleton className="h-4 w-full bg-white/10" />
+            <Skeleton className="h-4 w-3/4 bg-white/10" />
+            <Skeleton className="h-4 w-1/2 bg-white/10" />
+            <Skeleton className="h-32 w-full bg-white/10" />
+            <Skeleton className="h-4 w-2/3 bg-white/10" />
+            <Skeleton className="h-4 w-full bg-white/10" />
           </CardContent>
         </Card>
       </div>
     );
   }
 
+  // 青いボタンの生成画面は完全に削除しました（画像2つ目の編集画面のみを表示）
+
   return (
     <div className="space-y-6">
       <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-white flex items-center">
-                <Video className="w-5 h-5 mr-2" />
-                広告台本
-              </CardTitle>
-              <CardDescription className="text-gray-400">
-                広告台本を生成します
-              </CardDescription>
-            </div>
-            <div className="flex gap-3">
-              <Button
-                onClick={handleSaveProgress}
-                variant="outline"
-                className="border-blue-500/50 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400"
-                disabled={loading}
-              >
-                {loading ? "保存中..." : "進捗を保存"}
-              </Button>
-              <Button
-                onClick={handleCompleteStage}
-                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 z-20 relative shadow-lg"
-                disabled={loading}
-              >
-                {loading ? "処理中..." : "プロジェクト完了"}
-              </Button>
-            </div>
-          </div>
+          <CardTitle className="text-white flex items-center">
+            <Video className="w-5 h-5 mr-2" />
+            広告台本
+          </CardTitle>
+          <CardDescription className="text-gray-400">
+            広告台本を生成します
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -673,11 +704,11 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
             </div>
             <Button
               onClick={handleRegenerate}
-              disabled={loading}
+              disabled={regenerateLoading}
               className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0"
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              指示を反映して再生成
+              <RefreshCw className={`w-4 h-4 mr-2 ${regenerateLoading ? 'animate-spin' : ''}`} />
+              指示を反映して生成
             </Button>
           </div>
         </CardContent>
@@ -700,6 +731,23 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                   </CardDescription>
                 </div>
                 <div className="flex items-center space-x-2">
+                  <Button
+                    onClick={handleSaveProgress}
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-500/50 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400"
+                    disabled={saveLoading}
+                  >
+                    {saveLoading ? "保存中..." : "進捗を保存"}
+                  </Button>
+                  <Button
+                    onClick={handleCompleteStage}
+                    size="sm"
+                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0"
+                    disabled={completeLoading}
+                  >
+                    {completeLoading ? "処理中..." : "プロジェクト完了"}
+                  </Button>
                   <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
                     生成完了
                   </Badge>
@@ -766,9 +814,10 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                       variant="outline"
                       size="sm"
                       onClick={() => handleAddVariation()}
+                      disabled={addVariationLoading}
                       className="border-white/30 text-white hover:bg-white/10"
                     >
-                      + 新しいバリエーション
+                      {addVariationLoading ? "生成中..." : "+ 新しいバリエーション"}
                     </Button>
                 </div>
                   
@@ -797,10 +846,10 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                       variant="outline"
                       size="sm"
                       onClick={handleRegenerate}
-                      disabled={loading}
+                      disabled={regenerateLoading}
                       className="border-white/30 text-white hover:bg-white/10"
                     >
-                      <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      <RefreshCw className={`w-4 h-4 mr-2 ${regenerateLoading ? 'animate-spin' : ''}`} />
                       再生成
                     </Button>
                     <Button
@@ -834,10 +883,10 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                       <Button
                         size="sm"
                         onClick={handleSave}
-                        disabled={loading}
+                        disabled={saveLoading}
                         className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
                       >
-                        保存
+                        {saveLoading ? "保存中..." : "保存"}
                       </Button>
                     )}
                     <Button
@@ -1171,19 +1220,6 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
         </div>
       </div>
 
-      {/* Additional Actions */}
-      {scripts.length > 0 && (
-        <div className="flex justify-center">
-          <Button
-            onClick={handleSaveProgress}
-            variant="outline"
-            className="border-blue-500/50 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400"
-            disabled={loading}
-          >
-            {loading ? "保存中..." : "進捗を保存"}
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
