@@ -65,13 +65,13 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
 
         const data = await response.json();
         if (data.contents?.initial_data?.content) {
-          // APIから取得したデータを適切な形式に変換
+          // APIから取得したデータを適切な形式に変換（タグ情報を含む）
           const convertedData = data.contents.initial_data.content.map((item: any) => ({
             id: item.id,
             title: item.title,
             content: item.content,
             type: item.data_type,
-            tags: [], // 今後タグ機能を実装する場合
+            tags: item.tags || [], // タグ情報を正しく設定
             createdAt: item.created_at,
             updatedAt: item.updated_at || item.created_at,
           }));
@@ -355,7 +355,7 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
 
     setLoading(true);
     try {
-      // TODO: Save to Supabase
+      // フロントエンドのstateに追加（タグ情報を含む）
       const newData = {
         id: `text_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         title: textData.title,
@@ -371,9 +371,10 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
       
       toast({
         title: "データ追加完了",
-        description: "テキストデータが追加されました。",
+        description: "テキストデータが追加されました。「進捗を保存」でデータベースに保存されます。",
       });
     } catch (error) {
+      console.error('Text data save error:', error);
       toast({
         title: "エラー",
         description: "データの追加に失敗しました。",
@@ -396,9 +397,7 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
 
     setLoading(true);
     try {
-      // TODO: Implement URL scraping and save to Supabase
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate scraping
-      
+      // フロントエンドのstateに追加（タグ情報を含む）
       const newData = {
         id: `url_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         title: urlData.title,
@@ -414,7 +413,7 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
       
       toast({
         title: "URL解析完了",
-        description: "URLからデータを取得しました。",
+        description: "URLからデータを取得しました。「進捗を保存」でデータベースに保存されます。",
       });
     } catch (error) {
       toast({

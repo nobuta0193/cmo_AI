@@ -122,10 +122,17 @@ export async function GET(
       .eq('project_id', params.id)
       .order('created_at', { ascending: false });
 
-    // 一次情報を取得
+    // 一次情報を取得（タグ情報を含む）
     const { data: initialData } = await supabase
       .from('initial_data')
-      .select('*')
+      .select(`
+        *,
+        initial_data_tags (
+          tags (
+            name
+          )
+        )
+      `)
       .eq('project_id', params.id)
       .order('created_at', { ascending: false });
 
@@ -169,11 +176,17 @@ export async function GET(
       }
     }
 
-    // 一次情報をコンテンツに追加
+    // 一次情報をコンテンツに追加（タグ情報を含む）
     if (initialData && initialData.length > 0) {
+      // タグ情報を含む形式に変換
+      const processedInitialData = initialData.map(item => ({
+        ...item,
+        tags: item.initial_data_tags?.map((tagRelation: any) => tagRelation.tags?.name).filter(Boolean) || []
+      }));
+
       contentByStage['initial_data'] = {
         stageType: 'initial_data',
-        content: initialData,
+        content: processedInitialData,
         isSelected: true,
         createdAt: initialData[0].created_at,
         updatedAt: initialData[0].updated_at
@@ -292,11 +305,27 @@ export async function PUT(
       );
     }
 
-    // 一次情報の保存処理
+    // 一次情報の保存処理（タグ機能対応）
     if (content && stageType === 'initial_data') {
       console.log('Saving initial data:', { contentLength: JSON.stringify(content).length });
 
       try {
+        // 既存の一次情報とタグ関連付けを削除
+        const { data: existingInitialData } = await supabase
+          .from('initial_data')
+          .select('id')
+          .eq('project_id', params.id);
+
+        if (existingInitialData && existingInitialData.length > 0) {
+          const existingIds = existingInitialData.map(item => item.id);
+          
+          // 既存のタグ関連付けを削除
+          await supabase
+            .from('initial_data_tags')
+            .delete()
+            .in('initial_data_id', existingIds);
+        }
+
         // 既存の一次情報を削除
         await supabase
           .from('initial_data')
@@ -313,9 +342,10 @@ export async function PUT(
           last_edited_by: user.id,
         }));
 
-        const { error: initialDataError } = await supabase
+        const { data: insertedData, error: initialDataError } = await supabase
           .from('initial_data')
-          .insert(initialDataInserts);
+          .insert(initialDataInserts)
+          .select('id');
 
         if (initialDataError) {
           console.error('Initial data insert error:', initialDataError);
@@ -325,7 +355,68 @@ export async function PUT(
           );
         }
 
-        console.log('Initial data saved successfully');
+        console.log('Initial data saved successfully:', insertedData?.length || 0, 'items');
+
+        // タグ処理
+        if (insertedData && insertedData.length > 0) {
+          for (let i = 0; i < content.length; i++) {
+            const item = content[i];
+            const insertedItem = insertedData[i];
+            
+            if (item.tags && item.tags.length > 0) {
+              console.log('Processing tags for item:', insertedItem.id, 'tags:', item.tags);
+              
+              // 既存のタグを確認
+              const { data: existingTags } = await supabase
+                .from('tags')
+                .select('id, name')
+                .in('name', item.tags);
+
+              const existingTagNames = existingTags?.map(tag => tag.name) || [];
+              const newTagNames = item.tags.filter((tag: string) => !existingTagNames.includes(tag));
+
+              // 新しいタグを作成
+              if (newTagNames.length > 0) {
+                const { data: newTags, error: newTagError } = await supabase
+                  .from('tags')
+                  .insert(newTagNames.map((name: string) => ({ name })))
+                  .select('id, name');
+
+                if (newTagError) {
+                  console.error('New tag creation error:', newTagError);
+                  // タグの作成に失敗してもデータ保存は成功したので、警告として続行
+                }
+              }
+
+              // すべてのタグIDを取得
+              const { data: allTags } = await supabase
+                .from('tags')
+                .select('id, name')
+                .in('name', item.tags);
+
+              if (allTags && allTags.length > 0) {
+                // initial_data_tagsに関連付けを保存
+                const tagRelations = allTags.map(tag => ({
+                  initial_data_id: insertedItem.id,
+                  tag_id: tag.id
+                }));
+
+                const { error: tagRelationError } = await supabase
+                  .from('initial_data_tags')
+                  .insert(tagRelations);
+
+                if (tagRelationError) {
+                  console.error('Tag relation insert error:', tagRelationError);
+                  // 関連付けに失敗してもデータ保存は成功したので、警告として続行
+                } else {
+                  console.log('Tag relations saved:', tagRelations.length, 'for item:', insertedItem.id);
+                }
+              }
+            }
+          }
+        }
+
+        console.log('Initial data and tags saved successfully');
       } catch (error) {
         console.error('Initial data save error:', error);
         return NextResponse.json(
