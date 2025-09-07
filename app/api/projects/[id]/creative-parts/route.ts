@@ -305,11 +305,12 @@ async function generateCreativeParts(
 }
 
 export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   console.log('POST /api/projects/[id]/creative-parts: Start', { 
-    projectId: params.id,
+    projectId: id,
     timestamp: new Date().toISOString(),
     method: request.method,
     url: request.url
@@ -359,7 +360,7 @@ export async function POST(
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .select('id, name, created_by, organization_id')
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('organization_id', userData.organization_id)
       .single();
 
@@ -375,7 +376,7 @@ export async function POST(
     const { data: initialData, error: initialDataError } = await supabase
       .from('initial_data')
       .select('title, content, data_type, url')
-      .eq('project_id', params.id);
+      .eq('project_id', id);
 
     if (initialDataError) {
       console.error('Failed to fetch initial data:', initialDataError);
@@ -408,7 +409,7 @@ export async function POST(
     const { data: productSummaryData, error: productSummaryError } = await supabase
       .from('project_contents')
       .select('content')
-      .eq('project_id', params.id)
+      .eq('project_id', id)
       .eq('stage_type', 'product_summary')
       .order('created_at', { ascending: false })
       .limit(1);
@@ -442,7 +443,7 @@ export async function POST(
     const { data: educationContentData, error: educationContentError } = await supabase
       .from('project_contents')
       .select('content')
-      .eq('project_id', params.id)
+      .eq('project_id', id)
       .eq('stage_type', 'education_content')
       .order('created_at', { ascending: false })
       .limit(1);
@@ -531,7 +532,7 @@ export async function POST(
       .from('project_contents')
       .insert([
         {
-          project_id: params.id,
+          project_id: id,
           stage_type: 'creative_parts',
           content: creativeParts,
           status: 'completed',
@@ -552,7 +553,7 @@ export async function POST(
       );
     }
 
-    console.log('Creative parts saved successfully:', { contentId: savedContent.id, projectId: params.id });
+    console.log('Creative parts saved successfully:', { contentId: savedContent.id, projectId: id });
 
     return NextResponse.json({
       success: true,
@@ -565,7 +566,7 @@ export async function POST(
       error: error,
       message: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
-      projectId: params.id,
+      projectId: id,
       timestamp: new Date().toISOString()
     });
     

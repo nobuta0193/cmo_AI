@@ -183,10 +183,11 @@ async function generateEducationContent(
 }
 
 export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log('POST /api/projects/[id]/education-content: Start', { projectId: params.id });
+  const { id } = await params;
+  console.log('POST /api/projects/[id]/education-content: Start', { projectId: id });
   
   try {
     const cookieStore = cookies();
@@ -249,7 +250,7 @@ export async function POST(
           )
         )
       `)
-      .eq('project_id', params.id)
+      .eq('project_id', id)
       .order('created_at', { ascending: false });
 
     if (dataError) {
@@ -283,7 +284,7 @@ export async function POST(
     const { data: productSummaryData, error: summaryError } = await supabase
       .from('project_contents')
       .select('content')
-      .eq('project_id', params.id)
+      .eq('project_id', id)
       .eq('stage_type', 'product_summary')
       .eq('status', 'completed')
       .order('created_at', { ascending: false })
@@ -354,7 +355,7 @@ export async function POST(
       .from('project_contents')
       .insert([
         {
-          project_id: params.id,
+          project_id: id,
           stage_type: 'education_content',
           content: educationContent,
           status: 'completed',

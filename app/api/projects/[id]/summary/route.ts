@@ -185,8 +185,9 @@ async function generateSummary(initialData: any[], aiApiKey: string, model: stri
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   
   try {
     const cookieStore = cookies();
@@ -242,7 +243,7 @@ export async function POST(
     const { data: initialData, error: dataError } = await supabase
       .from('initial_data')
       .select('*')
-      .eq('project_id', params.id)
+      .eq('project_id', id)
       .order('created_at', { ascending: false });
 
     if (dataError) {
@@ -322,7 +323,7 @@ export async function POST(
     const { data: newContent, error: saveError } = await supabase
       .from('project_contents')
       .insert({
-        project_id: params.id,
+        project_id: id,
         stage_type: 'product_summary',
         content: summary,
         status: 'draft',

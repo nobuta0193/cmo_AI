@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   console.log('=== Simple Script Generation API Called ===');
-  console.log('Project ID:', params.id);
+  console.log('Project ID:', id);
   
   try {
     const body = await request.json();

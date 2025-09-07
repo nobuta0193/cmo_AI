@@ -4,9 +4,10 @@ import { NextResponse } from 'next/server';
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log('GET /api/projects/[id]: Start', { projectId: params.id });
+  const { id } = await params;
+  console.log('GET /api/projects/[id]: Start', { projectId: id });
   
   try {
     const cookieStore = cookies();
@@ -79,7 +80,7 @@ export async function GET(
           full_name
         )
       `)
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('organization_id', userData.organization_id)
       .single();
       
@@ -91,7 +92,7 @@ export async function GET(
           name
         )
       `)
-      .eq('project_id', params.id);
+      .eq('project_id', id);
       
     const tags = projectTags?.map(pt => pt.tags?.name).filter(Boolean) || [];
 
@@ -119,7 +120,7 @@ export async function GET(
     const { data: projectContents } = await supabase
       .from('project_contents')
       .select('*')
-      .eq('project_id', params.id)
+      .eq('project_id', id)
       .order('created_at', { ascending: false });
 
     // 一次情報を取得（タグ情報を含む）
@@ -133,7 +134,7 @@ export async function GET(
           )
         )
       `)
-      .eq('project_id', params.id)
+      .eq('project_id', id)
       .order('created_at', { ascending: false });
 
     console.log('Project contents query result:', {
@@ -232,9 +233,10 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log('PUT /api/projects/[id]: Start', { projectId: params.id });
+  const { id } = await params;
+  console.log('PUT /api/projects/[id]: Start', { projectId: id });
   
   try {
     const cookieStore = cookies();
@@ -292,7 +294,7 @@ export async function PUT(
     const { data: updatedProject, error: updateError } = await supabase
       .from('projects')
       .update(updateData)
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('organization_id', userData.organization_id)
       .select()
       .single();
@@ -314,7 +316,7 @@ export async function PUT(
         const { data: existingInitialData } = await supabase
           .from('initial_data')
           .select('id')
-          .eq('project_id', params.id);
+          .eq('project_id', id);
 
         if (existingInitialData && existingInitialData.length > 0) {
           const existingIds = existingInitialData.map(item => item.id);
@@ -330,11 +332,11 @@ export async function PUT(
         await supabase
           .from('initial_data')
           .delete()
-          .eq('project_id', params.id);
+          .eq('project_id', id);
 
         // 新しい一次情報を挿入
         const initialDataInserts = content.map((item: any) => ({
-          project_id: params.id,
+          project_id: id,
           title: item.title,
           content: item.content,
           data_type: item.type,
@@ -437,7 +439,7 @@ export async function PUT(
       const { data: existingContent } = await supabase
         .from('project_contents')
         .select('id')
-        .eq('project_id', params.id)
+        .eq('project_id', id)
         .eq('stage_type', normalizedStageType)
         .eq('is_selected', true)
         .single();
@@ -463,7 +465,7 @@ export async function PUT(
         const { error: contentInsertError } = await supabase
           .from('project_contents')
           .insert({
-            project_id: params.id,
+            project_id: id,
             stage_type: normalizedStageType,
             content: typeof content === 'string' ? content : JSON.stringify(content),
             status: 'draft',
@@ -500,9 +502,10 @@ export async function PUT(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log('PATCH /api/projects/[id]: Start', { projectId: params.id });
+  const { id } = await params;
+  console.log('PATCH /api/projects/[id]: Start', { projectId: id });
   
   try {
     const cookieStore = cookies();
@@ -564,7 +567,7 @@ export async function PATCH(
     const { data: updatedProject, error: updateError } = await supabase
       .from('projects')
       .update(updateData)
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('organization_id', userData.organization_id)
       .select()
       .single();
@@ -583,7 +586,7 @@ export async function PATCH(
       await supabase
         .from('project_tags')
         .delete()
-        .eq('project_id', params.id);
+        .eq('project_id', id);
 
       if (tags.length > 0) {
         // 既存のタグを取得
@@ -613,7 +616,7 @@ export async function PATCH(
           await supabase
             .from('project_tags')
             .insert(allTags.map(tag => ({
-              project_id: params.id,
+              project_id: id,
               tag_id: tag.id
             })));
         }

@@ -2,25 +2,27 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   console.log('=== Test API Called ===');
-  console.log('Project ID:', params.id);
+  console.log('Project ID:', id);
   
   return NextResponse.json({
     success: true,
     message: 'Test API is working',
-    projectId: params.id,
+    projectId: id,
     timestamp: new Date().toISOString()
   });
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   console.log('=== Test POST API Called ===');
-  console.log('Project ID:', params.id);
+  console.log('Project ID:', id);
   
   try {
     const body = await request.json();
@@ -29,7 +31,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       message: 'Test POST API is working',
-      projectId: params.id,
+      projectId: id,
       receivedData: body,
       timestamp: new Date().toISOString()
     });
