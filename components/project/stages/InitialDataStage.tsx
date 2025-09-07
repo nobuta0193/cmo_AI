@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, X, FileText, Upload, Link, Tag, Image, Camera, Edit, Save } from 'lucide-react';
+import { Plus, X, FileText, Upload, Link, Tag, Image as ImageIcon, Camera, Edit, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface InitialDataStageProps {
@@ -36,7 +37,7 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
     id: string;
     title: string;
     content: string;
-    type: 'text' | 'pdf' | 'url';
+    type: 'text' | 'pdf' | 'url' | 'image' | 'screenshot';
     tags: string[];
     createdAt: string;
     updatedAt: string;
@@ -208,10 +209,10 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
           // 画面選択のダイアログを表示
           const stream = await navigator.mediaDevices.getDisplayMedia({
             video: {
-              displaySurface: "monitor", // モニター全体を選択可能に
-              logicalSurface: true, // 論理的なディスプレイサーフェスを使用
-              cursor: "always" // カーソルを常に表示
-            }
+              displaySurface: "monitor" // モニター全体を選択可能に
+              // logicalSurface: true, // 論理的なディスプレイサーフェスを使用（型エラーのためコメントアウト）
+              // cursor: "always" // カーソルを常に表示（型エラーのためコメントアウト）
+            } as any
           });
 
           const video = document.createElement('video');
@@ -264,7 +265,7 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
       };
 
       // ESCキーでキャンセル
-      const handleKeyDown = (e) => {
+      const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
           overlay.remove();
           document.removeEventListener('keydown', handleKeyDown);
@@ -627,7 +628,7 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
                 PDF
               </TabsTrigger>
               <TabsTrigger value="image" className="data-[state=active]:bg-white/20">
-                <Image className="w-4 h-4 mr-2" />
+                <ImageIcon className="w-4 h-4 mr-2" />
                 画像
               </TabsTrigger>
               <TabsTrigger value="screenshot" className="data-[state=active]:bg-white/20">
@@ -893,10 +894,11 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
                           <div className="space-y-4">
                             {fileData.preview && (
                               <div className="relative w-full aspect-video">
-                                <img
+                                <Image
                                   src={fileData.preview}
                                   alt="プレビュー"
-                                  className="object-contain w-full h-full rounded-lg"
+                                  fill
+                                  className="object-contain rounded-lg"
                                 />
                               </div>
                             )}
@@ -918,7 +920,7 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
                         ) : (
                           <div className="space-y-4">
                             <div className="flex flex-col items-center justify-center py-4">
-                              <Image className="w-8 h-8 mb-3 text-gray-400" />
+                              <ImageIcon className="w-8 h-8 mb-3 text-gray-400" />
                               <p className="mb-2 text-sm text-gray-400">
                                 ドラッグ＆ドロップまたはクリックしてアップロード
                               </p>
@@ -1025,10 +1027,11 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
                         <div className="space-y-4">
                           {fileData.preview && (
                             <div className="relative w-full aspect-video">
-                              <img
+                              <Image
                                 src={fileData.preview}
                                 alt="プレビュー"
-                                className="object-contain w-full h-full rounded-lg"
+                                fill
+                                className="object-contain rounded-lg"
                               />
                             </div>
                           )}
@@ -1239,9 +1242,9 @@ export function InitialDataStage({ projectId, onComplete }: InitialDataStageProp
                         <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-xs">
                           {data.type === 'text' ? 'テキスト' : 
                            data.type === 'pdf' ? 'PDF' : 
-                           data.type === 'screenshot' ? 'スクショ' :
                            data.type === 'url' ? 'URL' : 
-                           data.type === 'image' ? '画像' : data.type}
+                           data.type === 'image' ? '画像' : 
+                           data.type === 'screenshot' ? 'スクショ' : data.type}
                         </Badge>
                       </td>
                       <td className="px-4 py-4">

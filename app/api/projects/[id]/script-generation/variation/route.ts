@@ -187,7 +187,7 @@ async function generateVariationScript(prompt: string): Promise<string> {
   }
   
   // AI生成が失敗した場合、適切なエラーメッセージを返す
-  throw new Error('バリエーション生成に失敗しました。一次情報が不足している可能性があります。まずはステージ1-4で必要な情報を入力してください。');
+  throw new Error('AIバリエーション生成に失敗しました。API設定を確認するか、しばらく時間をおいて再度お試しください。');
 }
 
 export async function POST(

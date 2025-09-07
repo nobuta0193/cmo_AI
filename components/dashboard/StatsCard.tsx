@@ -9,7 +9,7 @@ interface StatsCardProps {
   value: string;
   change: string;
   changeType: 'increase' | 'decrease';
-  icon: LucideIcon;
+  icon: typeof LucideIcon;
   description: string;
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -50,11 +50,7 @@ export default function SettingsPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
@@ -96,18 +92,18 @@ export default function SettingsPage() {
       }
 
       const profileData = {
-        ...userProfile,
+        ...(userProfile as any || {}),
         email: user.email || '',
-        organization_name: userOrg?.organizations?.name || '未設定',
-        role: userOrg?.role || 'member',
-        organization_id: userOrg?.organizations?.id || null
+        organization_name: (userOrg as any)?.organizations?.name || '未設定',
+        role: (userOrg as any)?.role || 'member',
+        organization_id: (userOrg as any)?.organizations?.id || null
       };
 
       setProfile(profileData);
       setFormData({
-        full_name: userProfile.full_name || '',
+        full_name: (userProfile as any)?.full_name || '',
         email: user.email || '',
-        avatar_url: userProfile.avatar_url || ''
+        avatar_url: (userProfile as any)?.avatar_url || ''
       });
     } catch (error) {
       console.error('プロフィール読み込みエラー:', error);
@@ -119,7 +115,11 @@ export default function SettingsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router, supabase]);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
   const handleUpdateProfile = async () => {
     if (!profile) return;
@@ -139,7 +139,7 @@ export default function SettingsPage() {
       }
 
       // profilesテーブルも更新
-      const { error: profileError } = await supabase
+      const { error: profileError } = await (supabase as any)
         .from('profiles')
         .update({
           full_name: formData.full_name,

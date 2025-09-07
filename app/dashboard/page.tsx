@@ -233,7 +233,7 @@ export default function DashboardPage() {
   const filteredAndSortedProjects = projects
     .filter(project =>
       (project.name.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
-       project.description.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
+       (project.description && project.description.toLowerCase().includes(filters.searchQuery.toLowerCase())) ||
        project.tags.some(tag => tag.toLowerCase().includes(filters.searchQuery.toLowerCase()))) &&
       (filters.filterByTag === 'all' || filters.filterByTag === '' || project.tags.includes(filters.filterByTag)) &&
       (filters.filterByAssignee === 'all' || filters.filterByAssignee === '' || project.assignee === filters.filterByAssignee) &&

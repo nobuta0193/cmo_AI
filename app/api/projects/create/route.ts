@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
     if (contentErrors.length > 0) {
       console.error('Content creation errors:', contentErrors);
       return NextResponse.json(
-        { error: 'Failed to create project contents', details: contentErrors[0].error.message },
+        { error: 'Failed to create project contents', details: contentErrors[0]?.error?.message || 'Unknown error' },
         { status: 500 }
       );
     }
@@ -125,8 +125,8 @@ export async function POST(request: Request) {
         .select('id, name')
         .in('name', tags);
 
-      const existingTagNames = existingTags?.map(tag => tag.name) || [];
-      const newTags = tags.filter(tag => !existingTagNames.includes(tag));
+      const existingTagNames = (existingTags as any)?.map((tag: any) => tag.name) || [];
+      const newTags = (tags as string[]).filter((tag: string) => !existingTagNames.includes(tag));
 
       // 新しいタグを作成
       if (newTags.length > 0) {

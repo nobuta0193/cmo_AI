@@ -5,7 +5,7 @@ import type { Database } from '@/lib/database.types';
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabase = createServerClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -37,16 +37,20 @@ export async function GET(request: NextRequest) {
     const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
-    // ユーザーの組織IDを取得（他のAPIと同じ方式）
-    const { data: userOrg, error: userOrgError } = await supabase
-      .from('user_organizations')
+    // ユーザーの組織IDを取得
+    const { data: userData, error: userDataError } = await supabase
+      .from('users')
       .select('organization_id')
-      .eq('user_id', user.id)
+      .eq('id', user.id)
       .single();
 
-    if (userOrgError) {
-      console.error('User organization fetch error:', userOrgError);
-      // エラーの場合はデフォルト値を返す
+    if (userDataError || !userData) {
+      if (userDataError) {
+        console.error('User data fetch error:', userDataError);
+      } else {
+        console.log('User has no organization');
+      }
+      // エラーの場合または組織がない場合はデフォルト値を返す
       const defaultStats = {
         totalProjects: { value: 0, change: 0, changeType: 'increase' as const },
         completedScripts: { value: 0, change: 0, changeType: 'increase' as const },
@@ -56,9 +60,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(defaultStats);
     }
 
-    if (!userOrg?.organization_id) {
+    const organizationId = (userData as any).organization_id;
+    if (!organizationId) {
       console.log('User has no organization');
-      // 組織がない場合もデフォルト値を返す
       const defaultStats = {
         totalProjects: { value: 0, change: 0, changeType: 'increase' as const },
         completedScripts: { value: 0, change: 0, changeType: 'increase' as const },
@@ -72,7 +76,7 @@ export async function GET(request: NextRequest) {
     const { data: allProjects, error: projectsError } = await supabase
       .from('projects')
       .select('id, created_at, stage, updated_at')
-      .eq('organization_id', userOrg.organization_id);
+      .eq('organization_id', organizationId);
 
     if (projectsError) {
       console.error('Error fetching projects:', projectsError);
@@ -89,13 +93,14 @@ export async function GET(request: NextRequest) {
     console.log('Projects fetched:', allProjects?.length || 0);
 
     // 統計を計算
-    const totalProjects = allProjects?.length || 0;
-    const thisMonthProjects = allProjects?.filter(p => 
+    const projects = (allProjects as any[]) || [];
+    const totalProjects = projects.length;
+    const thisMonthProjects = projects.filter(p => 
       new Date(p.created_at) >= currentMonth
-    ).length || 0;
+    ).length;
 
     // 完成台本数（ステージ5または6のプロジェクト）
-    const completedProjects = allProjects?.filter(p => p.stage >= 5) || [];
+    const completedProjects = projects.filter(p => p.stage >= 5);
     const totalCompletedScripts = completedProjects.length;
     const thisMonthCompletedScripts = completedProjects.filter(p => 
       new Date(p.created_at) >= currentMonth

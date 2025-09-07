@@ -17,7 +17,7 @@ export default function AuthCallbackPage() {
 
         if (user) {
           // 組織の作成
-          const { data: orgData, error: orgError } = await supabase
+          const { data: orgData, error: orgError } = await (supabase as any)
             .from('organizations')
             .insert([
               { 
@@ -32,7 +32,7 @@ export default function AuthCallbackPage() {
           if (orgError) throw orgError;
 
           // ユーザーと組織の紐付け
-          const { error: linkError } = await supabase
+          const { error: linkError } = await (supabase as any)
             .from('user_organizations')
             .insert([
               { 

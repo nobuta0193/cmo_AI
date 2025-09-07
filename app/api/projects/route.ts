@@ -6,7 +6,7 @@ export async function GET() {
   console.log('GET /api/projects: Start');
   
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -106,7 +106,7 @@ export async function GET() {
 
     // プロジェクトごとのタグマップを作成
     const tagsMap = new Map<string, string[]>();
-    allProjectTags?.forEach(pt => {
+    (allProjectTags as any)?.forEach((pt: any) => {
       if (pt.tags?.name) {
         if (!tagsMap.has(pt.project_id)) {
           tagsMap.set(pt.project_id, []);

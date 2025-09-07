@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import NextImage from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Video, RefreshCw, Edit, Eye, EyeOff, Wand2, Copy, Download, Bot, Image, Sparkles, Trash2, Check, X, MessageSquare } from 'lucide-react';
+import { Video, RefreshCw, Edit, Eye, EyeOff, Wand2, Copy, Download, Bot, Image as ImageIcon, Sparkles, Trash2, Check, X, MessageSquare } from 'lucide-react';
 import { BarChart3, TrendingUp, Award } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
@@ -334,19 +335,11 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
         }
         
         // エラーをthrowせずに、直接トーストで表示
-        if (errorMessage.includes("一次情報が不足")) {
-          toast({
-            title: "一次情報が必要です",
-            description: "台本生成には商品情報が必要です。ステージ1で商品情報やターゲット情報を入力してから再度お試しください。",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "生成エラー",
-            description: errorMessage,
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: "生成エラー",
+          description: errorMessage,
+          variant: "destructive",
+        });
         return; // エラー処理後は関数を終了
       }
 
@@ -417,19 +410,11 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
         }
         
         // エラーをthrowせずに、直接トーストで表示
-        if (errorMessage.includes("一次情報が不足")) {
-          toast({
-            title: "一次情報が必要です",
-            description: "バリエーション生成には商品情報が必要です。ステージ1-4で必要な情報を入力してから再度お試しください。",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "バリエーション生成エラー",
-            description: errorMessage,
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: "バリエーション生成エラー",
+          description: errorMessage,
+          variant: "destructive",
+        });
         return; // エラー処理後は関数を終了
       }
 
@@ -1450,7 +1435,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
             <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
               <CardHeader>
                 <CardTitle className="text-white flex items-center">
-                  <Image className="w-5 h-5 mr-2" />
+                  <ImageIcon className="w-5 h-5 mr-2" />
                   サムネイル生成
                 </CardTitle>
                 <CardDescription className="text-gray-400">
@@ -1509,11 +1494,14 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                     <div className="space-y-3 max-h-60 overflow-y-auto">
                       {thumbnails.map((thumbnail) => (
                         <div key={thumbnail.id} className="border border-white/10 rounded-lg p-3 space-y-2">
-                          <img 
-                            src={thumbnail.url} 
-                            alt="Generated thumbnail"
-                            className="w-full h-24 object-cover rounded"
-                          />
+                          <div className="relative w-full h-24">
+                            <NextImage 
+                              src={thumbnail.url} 
+                              alt="Generated thumbnail"
+                              fill
+                              className="object-cover rounded"
+                            />
+                          </div>
                           <div className="flex items-center justify-between">
                             <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-xs">
                               {thumbnail.ratio}

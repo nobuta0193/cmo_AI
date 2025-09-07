@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 // 教育コンテンツ生成プロンプト
 const EDUCATION_CONTENT_PROMPT = `# 命令書
@@ -190,7 +190,7 @@ export async function POST(
   console.log('POST /api/projects/[id]/education-content: Start', { projectId: id });
   
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

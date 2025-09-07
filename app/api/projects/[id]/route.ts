@@ -10,7 +10,7 @@ export async function GET(
   console.log('GET /api/projects/[id]: Start', { projectId: id });
   
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -94,7 +94,7 @@ export async function GET(
       `)
       .eq('project_id', id);
       
-    const tags = projectTags?.map(pt => pt.tags?.name).filter(Boolean) || [];
+    const tags = (projectTags as any)?.map((pt: any) => pt.tags?.name).filter(Boolean) || [];
 
     console.log('Project query result:', {
       project: project?.id,
@@ -239,7 +239,7 @@ export async function PUT(
   console.log('PUT /api/projects/[id]: Start', { projectId: id });
   
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -508,7 +508,7 @@ export async function PATCH(
   console.log('PATCH /api/projects/[id]: Start', { projectId: id });
   
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

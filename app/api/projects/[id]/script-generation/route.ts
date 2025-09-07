@@ -241,7 +241,7 @@ async function generateScript(prompt: string): Promise<string> {
   }
   
   // AI生成が失敗した場合、適切なエラーメッセージを返す
-  throw new Error('台本生成に失敗しました。一次情報が不足している可能性があります。まずはステージ1で商品情報やターゲット情報を入力してください。');
+  throw new Error('AI台本生成に失敗しました。API設定を確認するか、しばらく時間をおいて再度お試しください。');
 }
 
 export async function POST(

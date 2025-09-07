@@ -92,9 +92,9 @@ export default function DashboardLayout({ children, onFiltersChange, projects = 
   const navigation = getNavigation(pathname);
 
   // プロジェクトデータから動的にフィルター選択肢を生成
-  const allTags = [...new Set(projects.flatMap(p => p.tags || []))].sort();
-  const allAssignees = [...new Set(projects.map(p => p.assignee).filter(Boolean))].sort();
-  const allStatuses = [...new Set(projects.map(p => p.status).filter(Boolean))].sort();
+  const allTags = Array.from(new Set(projects.flatMap(p => p.tags || []))).sort();
+  const allAssignees = Array.from(new Set(projects.map(p => p.assignee).filter(Boolean))).sort();
+  const allStatuses = Array.from(new Set(projects.map(p => p.status).filter(Boolean))).sort();
 
   const handleFilterChange = () => {
     if (onFiltersChange) {
