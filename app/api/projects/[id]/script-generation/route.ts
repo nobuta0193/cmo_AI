@@ -215,33 +215,78 @@ async function generateScript(prompt: string): Promise<string> {
   console.log('Attempting AI script generation - prompt length:', prompt.length);
   
   try {
-    // AIクライアントを使った実際の生成を試行
-    const response = await fetch('/api/ai/generate', {
+    // AI生成ロジックを直接呼び出し（内部API呼び出しを避ける）
+    const supabase = createSupabaseClient();
+    
+    // API設定を取得
+    const { data: apiSettings, error: apiError } = await supabase
+      .from('api_settings')
+      .select('*')
+      .single();
+
+    if (apiError || !apiSettings) {
+      console.error('Failed to fetch API settings:', apiError);
+      throw new Error('API設定が見つかりません。管理者にAPI設定を依頼してください。');
+    }
+
+    // Gemini APIを直接呼び出し
+    const apiKey = apiSettings.gemini_api_key;
+    if (!apiKey) {
+      throw new Error('Gemini APIキーが設定されていません。管理者にAPI設定を依頼してください。');
+    }
+
+    console.log('Calling Gemini API directly...');
+    
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        prompt: prompt,
-        model: 'gemini-1.5-flash' // デフォルトモデル
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 8192,
+        }
       })
     });
 
-    if (response.ok) {
-      const result = await response.json();
-      if (result.content) {
-        console.log('AI generation successful');
-        return result.content;
-      }
+    console.log('Gemini API response status:', response.status);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Gemini API error:', errorData);
+      throw new Error(`Gemini API error: ${errorData.error?.message || response.statusText}`);
     }
+
+    const data = await response.json();
     
-    console.log('AI generation failed, checking for project data...');
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0]) {
+      console.error('Invalid Gemini response structure:', data);
+      throw new Error('Gemini APIから無効なレスポンスが返されました');
+    }
+
+    const generatedContent = data.candidates[0].content.parts[0].text;
+    console.log('AI generation successful, content length:', generatedContent.length);
+    
+    return generatedContent;
+
   } catch (error) {
-    console.log('AI generation error:', error);
+    console.error('AI generation error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    
+    // エラーを再スローして上位で処理
+    throw error;
   }
-  
-  // AI生成が失敗した場合、適切なエラーメッセージを返す
-  throw new Error('AI台本生成に失敗しました。API設定を確認するか、しばらく時間をおいて再度お試しください。');
 }
 
 export async function POST(

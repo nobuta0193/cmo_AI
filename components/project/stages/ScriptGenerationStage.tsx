@@ -322,26 +322,41 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
         })
       });
 
-      if (!response.ok) {
-        let errorMessage = '広告台本の生成に失敗しました';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
-          // ログ出力（安全な方法）
-          console.log(`API Error - Status: ${response.status}, Message: ${errorData.error || 'Unknown error'}`);
-        } catch (parseError) {
-          console.log('Error parsing error response:', parseError);
-          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        }
+    if (!response.ok) {
+      let errorMessage = '広告台本の生成に失敗しました';
+      let errorDetails = '';
+      
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+        errorDetails = errorData.details || '';
         
-        // エラーをthrowせずに、直接トーストで表示
-        toast({
-          title: "生成エラー",
-          description: errorMessage,
-          variant: "destructive",
+        // 詳細なログ出力
+        console.error('Script Generation API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData.error,
+          details: errorData.details,
+          fullResponse: errorData
         });
-        return; // エラー処理後は関数を終了
+      } catch (parseError) {
+        console.error('Error parsing error response:', parseError);
+        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        errorDetails = 'レスポンスの解析に失敗しました';
       }
+      
+      // より詳細なエラーメッセージを表示
+      const displayMessage = errorDetails ? 
+        `${errorMessage}\n詳細: ${errorDetails.substring(0, 200)}...` : 
+        errorMessage;
+      
+      toast({
+        title: "生成エラー",
+        description: displayMessage,
+        variant: "destructive",
+      });
+      return; // エラー処理後は関数を終了
+    }
 
       const result = await response.json();
       

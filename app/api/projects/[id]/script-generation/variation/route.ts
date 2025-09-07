@@ -161,8 +161,14 @@ async function generateVariationScript(prompt: string): Promise<string> {
   console.log('Generating variation script with AI - prompt length:', prompt.length);
   
   try {
+    // サーバーサイドでは絶対URLを使用する必要がある
+    const baseUrl = process.env.NEXTAUTH_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+    const apiUrl = `${baseUrl}/api/ai/generate`;
+    
+    console.log('Calling AI generate API at:', apiUrl);
+    
     // AIクライアントを使った実際の生成を試行
-    const response = await fetch('/api/ai/generate', {
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
