@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { aiManager } from '@/lib/ai/clients';
 
 // テキスト編集エージェント用のプロンプトを構築する関数
-export function buildTextEditAgentPrompt(
+function buildTextEditAgentPrompt(
   content: string, 
   userInstruction: string
 ): string {

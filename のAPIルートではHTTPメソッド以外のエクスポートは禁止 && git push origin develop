@@ -1,0 +1,3 @@
+[33me1493f3[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mdevelop[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/develop[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m fix: デプロイエラー緊急修正
+[33mfe529bf[m feat: 進捗表示修正、編集機能実装、ソート・フィルター機能改善
+[33m24dc1db[m Update project route and InitialDataStage components
