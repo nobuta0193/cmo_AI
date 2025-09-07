@@ -54,6 +54,7 @@ import Link from 'next/link';
 interface DashboardLayoutProps {
   children: React.ReactNode;
   onFiltersChange?: (filters: any) => void;
+  projects?: any[];
 }
 
 const getNavigation = (currentPath: string) => [
@@ -66,7 +67,7 @@ const adminNavigation = [
   { name: '管理者画面', href: '/admin', icon: Shield, current: false },
 ];
 
-export default function DashboardLayout({ children, onFiltersChange }: DashboardLayoutProps) {
+export default function DashboardLayout({ children, onFiltersChange, projects = [] }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,10 +91,10 @@ export default function DashboardLayout({ children, onFiltersChange }: Dashboard
   const isDashboard = pathname === '/dashboard';
   const navigation = getNavigation(pathname);
 
-  // Mock data for filters
-  const allTags = ['商品情報', 'ユーザー情報', '広告情報', 'B2B', 'B2C', 'EC', '健康・美容'];
-  const allAssignees = ['田中太郎', '佐藤花子', '山田次郎'];
-  const allStatuses = ['初期情報登録', 'クリエイティブパーツ生成', '広告台本生成完了'];
+  // プロジェクトデータから動的にフィルター選択肢を生成
+  const allTags = [...new Set(projects.flatMap(p => p.tags || []))].sort();
+  const allAssignees = [...new Set(projects.map(p => p.assignee).filter(Boolean))].sort();
+  const allStatuses = [...new Set(projects.map(p => p.status).filter(Boolean))].sort();
 
   const handleFilterChange = () => {
     if (onFiltersChange) {

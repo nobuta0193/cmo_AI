@@ -9,104 +9,57 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Video, RefreshCw, Edit, Eye, EyeOff, Wand2, Copy, Download, MessageSquare, Bot, Image, Sparkles, Trash2 } from 'lucide-react';
+import { Video, RefreshCw, Edit, Eye, EyeOff, Wand2, Copy, Download, Bot, Image, Sparkles, Trash2, Check, X, MessageSquare } from 'lucide-react';
 import { BarChart3, TrendingUp, Award } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Components } from 'react-markdown';
+import { createBrowserClient } from '@supabase/ssr';
+import { detectLineDiff, markupDiffForDisplay, generateCleanText, DiffResult } from '@/lib/diff-utils';
 
 interface ScriptGenerationStageProps {
   projectId: string;
   onComplete: () => void;
 }
 
-const mockScript1 = `# ショート動画広告台本 - バリエーション A
 
-## 基本情報
-- **動画尺**: 30秒
-- **ターゲット**: 30-50代働く女性
-- **プラットフォーム**: Instagram Reels / TikTok
-- **話者**: 女性（実体験説明パターン）
 
-## 台本
+// 差分表示用のカスタムコンポーネント
+const DiffDisplay = ({ diffResult }: { diffResult: DiffResult }) => {
+  return (
+    <div className="space-y-1">
+      {diffResult.chunks.map((chunk, index) => {
+        let className = "";
+        let prefix = "";
+        
+        switch (chunk.type) {
+          case 'added':
+            className = "bg-green-100/20 border-l-4 border-green-400 text-green-200 pl-4 py-1";
+            prefix = "+ ";
+            break;
+          case 'removed':
+            className = "bg-red-100/20 border-l-4 border-red-400 text-red-200 pl-4 py-1 line-through";
+            prefix = "- ";
+            break;
+          case 'unchanged':
+            className = "";
+            prefix = "";
+            break;
+        }
+        
+        return (
+          <div key={index} className={className}>
+            {prefix}{chunk.content}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
-### オープニング（0-3秒）
-**[画面]** 疲れた表情でデスクに向かう女性
-**[ナレーション]** 「最近、なんだか疲れやすくて...」
-
-### 問題提起（3-8秒）
-**[画面]** 階段を上がって息切れする様子
-**[ナレーション]** 「階段上るだけで息切れするし、風邪もひきやすくなった。これって年齢のせい？」
-
-### 原因解明（8-15秒）
-**[画面]** 室内で過ごす日常、日光が入らない部屋
-**[ナレーション]** 「実は現代人の8割がビタミンD不足。リモートワークで日光を浴びないのが原因だったんです」
-
-### 解決策提示（15-22秒）
-**[画面]** サプリメントを手に取る、商品パッケージ
-**[ナレーション]** 「そこで始めたのがこのビタミンDサプリ。1日1粒で太陽の恵みを手軽に摂取」
-
-### 効果実感（22-27秒）
-**[画面]** 元気に階段を上る、笑顔で仕事をする様子
-**[ナレーション]** 「3ヶ月続けたら疲れにくくなって、風邪もひかなくなりました！」
-
-### クロージング（27-30秒）
-**[画面]** 商品パッケージ、特別価格表示
-**[ナレーション]** 「今なら初回50%OFF！あなたも太陽の力を実感してみませんか？」
-
-## 演出ポイント
-- **リアリティ重視**: 実際の生活シーンを使用
-- **共感性**: ターゲットが「あるある」と思える内容
-- **科学的根拠**: 8割という具体的数値で説得力向上
-- **ビフォーアフター**: 変化を視覚的に表現
-
-## キーメッセージ
-1. 疲れやすさの原因はビタミンD不足
-2. 現代人の8割が不足している
-3. 1日1粒で手軽に解決
-4. 実際に効果を実感できる`;
-
-const mockScript2 = `# ショート動画広告台本 - バリエーション B
-
-## 基本情報
-- **動画尺**: 30秒
-- **ターゲット**: 30-50代働く女性
-- **プラットフォーム**: Instagram Reels / TikTok
-- **話者**: 女性（教育・解説パターン）
-
-## 台本
-
-### 衝撃の事実（0-5秒）
-**[画面]** 統計グラフ、驚く女性の表情
-**[ナレーション]** 「知ってました？現代人の8割がビタミンD不足で、それが疲れやすさの原因だったんです」
-
-### 問題の深刻さ（5-12秒）
-**[画面]** 室内で過ごす人々、日焼け止めを塗る様子
-**[ナレーション]** 「リモートワークに日焼け止め...太陽の恵みを受けられない現代生活。でも食事だけでは限界が」
-
-### 食事の限界（12-18秒）
-**[画面]** サンマ4匹、卵20個の映像
-**[ナレーション]** 「必要量を摂るにはサンマ4匹、卵なら20個分！現実的じゃないですよね」
-
-### 解決策（18-25秒）
-**[画面]** サプリメント、1000IUの表示
-**[ナレーション]** 「だからこのサプリ。1粒1000IUで理想的な摂取量。吸収率も30%アップの特別製法」
-
-### 行動促進（25-30秒）
-**[画面]** 特別価格、返金保証のテキスト
-**[ナレーション]** 「今なら初回50%OFF、30日間返金保証付き。太陽の力で健康な毎日を始めませんか？」
-
-## 演出ポイント
-- **教育的アプローチ**: 知識を提供して納得感を演出
-- **具体的数値**: 8割、4匹、20個など印象に残る数字
-- **比較効果**: 食事との比較でサプリの優位性を強調
-- **安心感**: 返金保証で購入ハードルを下げる
-
-## キーメッセージ
-1. 8割の人がビタミンD不足という事実
-2. 食事だけでは現実的に摂取困難
-3. サプリなら1粒で理想的な摂取
-4. 特別製法で吸収率向上`;
+// 標準のMarkdownコンポーネント（差分表示なし）
+const standardMarkdownComponents: Components = {};
 
 export function ScriptGenerationStage({ projectId, onComplete }: ScriptGenerationStageProps) {
   interface Script {
@@ -120,6 +73,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
   const [isScriptGenerated, setIsScriptGenerated] = useState(false);
   const [customInstructions, setCustomInstructions] = useState('');
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [contentId, setContentId] = useState<string | null>(null);
   const [aiEditLoading, setAiEditLoading] = useState(false);
   const [thumbnailLoading, setThumbnailLoading] = useState(false);
   const [regenerateLoading, setRegenerateLoading] = useState(false);
@@ -129,8 +83,12 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
   const [isEditing, setIsEditing] = useState(false);
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
-  const [aiEditMode, setAiEditMode] = useState<'ask' | 'agent'>('ask');
+  const [aiEditMode, setAiEditMode] = useState<'agent'>('agent');
   const [aiEditPrompt, setAiEditPrompt] = useState('');
+  const [originalContent, setOriginalContent] = useState('');
+  const [pendingChanges, setPendingChanges] = useState<string | null>(null);
+  const [diffResult, setDiffResult] = useState<DiffResult | null>(null);
+  const [showDiffPreview, setShowDiffPreview] = useState(false);
   const [thumbnails, setThumbnails] = useState<Array<{
     id: string;
     url: string;
@@ -153,101 +111,270 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
   const [evaluationLoading, setEvaluationLoading] = useState(false);
   const { toast } = useToast();
 
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  // デバッグ用：環境変数の確認
+  useEffect(() => {
+    console.log('=== ScriptGenerationStage Environment Check ===');
+    console.log('NEXT_PUBLIC_SUPABASE_URL exists:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log('NEXT_PUBLIC_SUPABASE_ANON_KEY exists:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    console.log('SUPABASE_URL (first 20 chars):', process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 20));
+  }, []);
+
   // Supabaseからデータを読み込む useEffect
   useEffect(() => {
-    const loadProjectData = async () => {
+    const loadExistingContent = async () => {
+      console.log('=== ScriptGenerationStage: loadExistingContent called ===');
+      console.log('Project ID:', projectId);
+      
+      if (!projectId) {
+        console.log('No projectId provided, skipping load');
+        return;
+      }
+      
+      setIsInitialLoading(true);
+      
+      // コンテンツとIDを初期化
+      console.log('Initializing state before loading...');
+      setScripts([]);
+      setSelectedScriptId(null);
+      setContentId(null);
+      setIsScriptGenerated(false);
+      setEvaluation(null);
+      
       try {
-        const response = await fetch(`/api/projects/${projectId}`, {
-          method: 'GET',
-          credentials: 'include',
+        console.log('Querying Supabase for script content...');
+        
+        // Supabaseクライアントの状態確認
+        console.log('Supabase client check:', {
+          hasClient: !!supabase,
+          hasAuth: !!supabase.auth,
+          projectId: projectId
+        });
+        
+        const { data: existingContent, error } = await supabase
+          .from('project_contents')
+          .select('id, content, created_at, updated_at, status')
+          .eq('project_id', projectId)
+          .eq('stage_type', 'script')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        console.log('Supabase query result:', {
+          data: existingContent,
+          error: error,
+          hasData: existingContent && existingContent.length > 0
         });
 
-        if (response.ok) {
-          const project = await response.json();
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+          console.error('Supabase query error:', {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            projectId: projectId,
+            fullError: error
+          });
+          throw error;
+        }
+
+        if (existingContent && existingContent.length > 0) {
+          const latestContent = existingContent[0];
+          console.log('Latest content found:', {
+            id: latestContent.id,
+            created_at: latestContent.created_at,
+            updated_at: latestContent.updated_at,
+            status: latestContent.status,
+            contentType: typeof latestContent.content,
+            contentKeys: latestContent.content ? Object.keys(latestContent.content) : []
+          });
           
-          console.log('Loaded project data:', project);
+          let scriptData = latestContent.content;
           
-          // 新しいAPI形式：contents.scriptまたは直接stageType/contentをチェック
-          let scriptContent = null;
+          console.log('Raw content from database:', {
+            contentType: typeof latestContent.content,
+            contentValue: latestContent.content,
+            isString: typeof latestContent.content === 'string',
+            isObject: typeof latestContent.content === 'object'
+          });
           
-          // 新しい形式：contents.script
-          if (project.contents && project.contents.script && project.contents.script.content) {
-            scriptContent = project.contents.script.content;
-          }
-          // 旧形式：直接stageType/content（後方互換性）
-          else if (project.stageType === 'script' && project.content) {
-            scriptContent = project.content;
-          }
-          
-          // スクリプトコンテンツが見つかった場合
-          if (scriptContent && scriptContent.scripts && scriptContent.scripts.length > 0) {
-            console.log('Found script content:', scriptContent);
-            
-            // 保存されたデータを復元
-            setScripts(scriptContent.scripts);
-            setSelectedScriptId(scriptContent.selectedScript || scriptContent.scripts[0].id);
-            setIsScriptGenerated(true);
-            
-            // 評価データも復元
-            if (scriptContent.evaluation) {
-              setEvaluation(scriptContent.evaluation);
+          // もしcontentが文字列の場合、JSONとしてパースを試行
+          if (typeof scriptData === 'string') {
+            // 空文字列や空白のみの文字列をチェック
+            const trimmedData = scriptData.trim();
+            if (trimmedData === '' || trimmedData === 'null' || trimmedData === 'undefined') {
+              console.log('Content is empty or null, skipping JSON parsing');
+              scriptData = null;
+            } else {
+              try {
+                console.log('Attempting to parse content as JSON...', {
+                  length: trimmedData.length,
+                  firstChars: trimmedData.substring(0, 50),
+                  lastChars: trimmedData.substring(Math.max(0, trimmedData.length - 50))
+                });
+                scriptData = JSON.parse(trimmedData);
+                console.log('JSON parsing successful:', scriptData);
+              } catch (parseError) {
+                console.error('Failed to parse content as JSON:', parseError);
+                console.log('Content string details:', {
+                  originalLength: scriptData.length,
+                  trimmedLength: trimmedData.length,
+                  contentPreview: trimmedData.substring(0, 100),
+                  isValidJSON: false
+                });
+                // パースに失敗した場合は、scriptDataをnullに設定
+                scriptData = null;
+              }
             }
-            
-            console.log('Script data restored:', {
-              scriptsCount: scriptContent.scripts.length,
-              selectedScript: scriptContent.selectedScript,
-              hasEvaluation: !!scriptContent.evaluation
+          }
+          
+          if (scriptData && typeof scriptData === 'object') {
+            console.log('Script data structure:', {
+              hasScripts: !!scriptData.scripts,
+              scriptsLength: scriptData.scripts ? scriptData.scripts.length : 0,
+              selectedScript: scriptData.selectedScript,
+              hasEvaluation: !!scriptData.evaluation,
+              scriptDataKeys: Object.keys(scriptData)
             });
+            
+            if (scriptData.scripts && Array.isArray(scriptData.scripts) && scriptData.scripts.length > 0) {
+              console.log('Setting script data to state...');
+              
+              setScripts(scriptData.scripts);
+              const selectedId = scriptData.selectedScript || scriptData.scripts[0].id;
+              setSelectedScriptId(selectedId);
+              setIsScriptGenerated(true);
+              setContentId(latestContent.id);
+              
+              // 評価データも復元
+              if (scriptData.evaluation) {
+                console.log('Restoring evaluation data:', scriptData.evaluation);
+                setEvaluation(scriptData.evaluation);
+              }
+              
+              console.log('=== Script data successfully restored ===', {
+                scriptsCount: scriptData.scripts.length,
+                selectedScript: selectedId,
+                hasEvaluation: !!scriptData.evaluation,
+                contentId: latestContent.id
+              });
+            } else {
+              console.log('Script data exists but no valid scripts found:', {
+                hasScripts: !!scriptData.scripts,
+                scriptsType: typeof scriptData.scripts,
+                isArray: Array.isArray(scriptData.scripts),
+                scriptsValue: scriptData.scripts
+              });
+            }
           } else {
-            console.log('No script content found in project data - initializing with default script');
-            // データがない場合は、デフォルトのスクリプトで初期化
-            const defaultScript: Script = {
-              id: 'script_1',
-              title: 'バリエーション A',
-              content: mockScript1
-            };
-            setScripts([defaultScript]);
-            setSelectedScriptId(defaultScript.id);
-            setIsScriptGenerated(true);
+            console.log('Script data is not a valid object:', {
+              scriptDataType: typeof scriptData,
+              scriptDataValue: scriptData,
+              isNull: scriptData === null,
+              isUndefined: scriptData === undefined
+            });
           }
         } else {
-          console.error('Failed to load project data:', response.status);
+          console.log('No script content found in project_contents table');
         }
       } catch (error) {
-        console.error('データの読み込みエラー:', error);
+        console.error('ScriptGenerationStage: Failed to load existing content:', error);
+        toast({
+          title: "エラー",
+          description: "コンテンツの読み込みに失敗しました。",
+          variant: "destructive",
+        });
       } finally {
         setIsInitialLoading(false);
+        console.log('=== loadExistingContent completed ===');
       }
     };
 
-    loadProjectData();
-  }, [projectId]);
+    loadExistingContent();
+  }, [projectId, supabase, toast]);
 
   const loadOrGenerateScript = async () => {
+    if (!projectId) {
+      toast({
+        title: "エラー",
+        description: "プロジェクトIDが見つかりません。",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setRegenerateLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      const newScript: Script = {
-        id: 'script_1',
-        title: 'バリエーション A',
-        content: mockScript1
-      };
-      const newScripts = [newScript];
-      setScripts(newScripts);
-      setSelectedScriptId(newScript.id);
-      setIsScriptGenerated(true);
+      console.log('Calling script generation API for project:', projectId);
       
-      // 生成後、自動的にSupabaseに保存
-      await saveContentToSupabase(newScripts, newScript.id, null);
+      const response = await fetch(`/api/projects/${projectId}/script-generation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          customInstructions: customInstructions
+        })
+      });
+
+      if (!response.ok) {
+        let errorMessage = '広告台本の生成に失敗しました';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+          // ログ出力（安全な方法）
+          console.log(`API Error - Status: ${response.status}, Message: ${errorData.error || 'Unknown error'}`);
+        } catch (parseError) {
+          console.log('Error parsing error response:', parseError);
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        
+        // エラーをthrowせずに、直接トーストで表示
+        if (errorMessage.includes("一次情報が不足")) {
+          toast({
+            title: "一次情報が必要です",
+            description: "台本生成には商品情報が必要です。ステージ1で商品情報やターゲット情報を入力してから再度お試しください。",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "生成エラー",
+            description: errorMessage,
+            variant: "destructive",
+          });
+        }
+        return; // エラー処理後は関数を終了
+      }
+
+      const result = await response.json();
+      
+      if (!result || !result.scriptData) {
+        throw new Error('APIから有効なレスポンスが返されませんでした');
+      }
+
+      console.log('Script generation successful:', result);
+
+      // 生成されたスクリプトデータを状態に設定
+      setScripts(result.scriptData.scripts);
+      setSelectedScriptId(result.scriptData.selectedScript);
+      setIsScriptGenerated(true);
+      setContentId(result.contentId);
       
       toast({
         title: "広告台本生成完了",
-        description: "広告台本を生成しました。",
+        description: "AI台本を生成しました。",
       });
     } catch (error) {
+      console.log('Script generation error:', error);
+      const errorMessage = error instanceof Error ? error.message : "広告台本の生成に失敗しました。";
+      
       toast({
         title: "生成エラー",
-        description: "広告台本の生成に失敗しました。",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -256,14 +383,71 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
   };
 
   const handleAddVariation = async () => {
+    if (!projectId) {
+      toast({
+        title: "エラー",
+        description: "プロジェクトIDが見つかりません。",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setAddVariationLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('Calling variation generation API for project:', projectId);
+      
+      const response = await fetch(`/api/projects/${projectId}/script-generation/variation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'バリエーション生成に失敗しました';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+          // ログ出力（安全な方法）
+          console.log(`Variation API Error - Status: ${response.status}, Message: ${errorData.error || 'Unknown error'}`);
+        } catch (parseError) {
+          console.log('Error parsing error response:', parseError);
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        
+        // エラーをthrowせずに、直接トーストで表示
+        if (errorMessage.includes("一次情報が不足")) {
+          toast({
+            title: "一次情報が必要です",
+            description: "バリエーション生成には商品情報が必要です。ステージ1-4で必要な情報を入力してから再度お試しください。",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "バリエーション生成エラー",
+            description: errorMessage,
+            variant: "destructive",
+          });
+        }
+        return; // エラー処理後は関数を終了
+      }
+
+      const result = await response.json();
+      
+      if (!result || !result.script) {
+        throw new Error('APIから有効なレスポンスが返されませんでした');
+      }
+
+      console.log('Variation generation successful:', result);
+
+      // 生成されたスクリプトを追加
       const newScript: Script = {
-        id: `script_${scripts.length + 1}`,
-        title: `バリエーション ${String.fromCharCode(65 + scripts.length)}`,
-        content: mockScript2 // 一時的にmockScript2を使用
+        id: result.script.id,
+        title: result.script.title,
+        content: result.script.content
       };
+      
       const updatedScripts = [...scripts, newScript];
       setScripts(updatedScripts);
       setSelectedScriptId(newScript.id);
@@ -272,13 +456,16 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
       await saveContentToSupabase(updatedScripts, newScript.id, evaluation);
       
       toast({
-        title: "バリエーション追加完了",
-        description: "新しいバリエーションを追加しました。",
+        title: "バリエーション生成完了",
+        description: "AI生成による新しいバリエーションを追加しました。",
       });
     } catch (error) {
+      console.log('Variation generation error:', error);
+      const errorMessage = error instanceof Error ? error.message : "バリエーションの生成に失敗しました。";
+      
       toast({
-        title: "生成エラー",
-        description: "バリエーションの追加に失敗しました。",
+        title: "バリエーション生成エラー",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -287,35 +474,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
   };
 
   const handleRegenerate = async () => {
-    setRegenerateLoading(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      const newScript: Script = {
-        id: 'script_1',
-        title: 'バリエーション A',
-        content: mockScript1
-      };
-      const newScripts = [newScript];
-      setScripts(newScripts);
-      setSelectedScriptId(newScript.id);
-      setIsScriptGenerated(true);
-      
-      // 自動保存
-      await saveContentToSupabase(newScripts, newScript.id, null);
-      
-      toast({
-        title: "広告台本生成完了",
-        description: "広告台本を生成しました。",
-      });
-    } catch (error) {
-      toast({
-        title: "生成エラー",
-        description: "広告台本の生成に失敗しました。",
-        variant: "destructive",
-      });
-    } finally {
-      setRegenerateLoading(false);
-    }
+    await loadOrGenerateScript();
   };
 
   const handleSave = async () => {
@@ -386,10 +545,12 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
     });
   };
 
-  const handleDeleteScript = () => {
+  const handleDeleteScript = async () => {
     if (!selectedScriptId) return;
     
     const updatedScripts = scripts.filter(script => script.id !== selectedScriptId);
+    
+    // フロントエンド状態を更新
     if (updatedScripts.length === 0) {
       setScripts([]);
       setSelectedScriptId(null);
@@ -399,42 +560,160 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
       setSelectedScriptId(updatedScripts[0].id);
     }
     
-    toast({
-      title: "削除完了",
-      description: "選択中のバリエーションを削除しました。",
-    });
+    // 重要：Supabaseにも削除を反映
+    try {
+      await saveContentToSupabase(
+        updatedScripts, 
+        updatedScripts.length > 0 ? updatedScripts[0].id : null, 
+        evaluation
+      );
+      
+      toast({
+        title: "削除完了",
+        description: "選択中のバリエーションを削除しました。",
+      });
+    } catch (error) {
+      console.error('Delete save error:', error);
+      toast({
+        title: "エラー",
+        description: "削除の保存に失敗しました。再度お試しください。",
+        variant: "destructive",
+      });
+      
+      // エラーの場合は状態を元に戻す
+      const originalScript = scripts.find(s => s.id === selectedScriptId);
+      if (originalScript) {
+        setScripts([...updatedScripts, originalScript]);
+        setSelectedScriptId(selectedScriptId);
+      }
+    }
   };
 
   // Supabaseへの保存用ヘルパー関数
   const saveContentToSupabase = async (scriptsToSave: Script[], selectedId: string | null, evaluationToSave: any) => {
-    const response = await fetch(`/api/projects/${projectId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({
-        stageType: 'script_generation', // APIで'script'に正規化される
-        content: { 
-          scripts: scriptsToSave,
-          selectedScript: selectedId,
-          evaluation: evaluationToSave 
-        },
-        status: '広告台本生成中',
-      }),
-    });
+    try {
+      console.log('saveContentToSupabase called with:', {
+        scriptsCount: scriptsToSave.length,
+        selectedId,
+        hasEvaluation: !!evaluationToSave,
+        contentId
+      });
 
-    if (!response.ok) {
-      throw new Error('保存に失敗しました');
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.error('Auth error:', userError);
+        throw new Error(`認証エラー: ${userError.message}`);
+      }
+      if (!user) {
+        throw new Error('ユーザーが認証されていません');
+      }
+
+      const scriptData = {
+        scripts: scriptsToSave,
+        selectedScript: selectedId,
+        evaluation: evaluationToSave
+      };
+
+      const contentData = {
+        project_id: projectId,
+        stage_type: 'script',
+        content: scriptData,
+        status: 'draft',
+        is_ai_generated: true,
+        created_by: user.id,
+        last_edited_by: user.id,
+      };
+
+      console.log('Saving content data:', contentData);
+
+      if (contentId) {
+        console.log('Updating existing content with ID:', contentId);
+        const { error: updateError } = await supabase
+          .from('project_contents')
+          .update({
+            content: scriptData,
+            last_edited_by: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', contentId);
+
+        if (updateError) {
+          console.error('Update error:', updateError);
+          throw new Error(`更新エラー: ${updateError.message}`);
+        }
+        console.log('Content updated successfully');
+      } else {
+        console.log('Creating new content');
+        const { data: newContent, error: insertError } = await supabase
+          .from('project_contents')
+          .insert([contentData])
+          .select('id')
+          .single();
+
+        if (insertError) {
+          console.error('Insert error:', insertError);
+          throw new Error(`作成エラー: ${insertError.message}`);
+        }
+        if (newContent) {
+          console.log('New content created with ID:', newContent.id);
+          setContentId(newContent.id);
+        }
+      }
+    } catch (error) {
+      console.error('saveContentToSupabase error:', error);
+      throw error;
     }
-    
-    return response.json();
   };
 
   const handleSaveProgress = async () => {
+    console.log('handleSaveProgress called');
     setSaveLoading(true);
     try {
+      // データの検証
+      if (!projectId) {
+        throw new Error('プロジェクトIDが見つかりません');
+      }
+
+      console.log('Current state:', {
+        scriptsCount: scripts.length,
+        selectedScriptId,
+        hasEvaluation: !!evaluation,
+        projectId
+      });
+
+      // まずSupabaseに保存してcontentIdを設定
       await saveContentToSupabase(scripts, selectedScriptId, evaluation);
+      console.log('Supabase save completed');
+      
+      // 次にプロジェクトの進捗を更新
+      console.log('Updating project via API');
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          stageType: 'script',
+          content: { 
+            scripts: scripts,
+            selectedScript: selectedScriptId,
+            evaluation: evaluation 
+          },
+          status: '広告台本生成中',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API response error:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        throw new Error(`API保存エラー (${response.status}): ${errorText}`);
+      }
+      console.log('Project API update completed');
 
       toast({
         title: "保存完了",
@@ -442,9 +721,10 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
       });
     } catch (error) {
       console.error('Save error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'データの保存に失敗しました。';
       toast({
         title: "保存エラー",
-        description: "データの保存に失敗しました。",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -464,10 +744,52 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
 
     setCompleteLoading(true);
     try {
-      // まずコンテンツを保存
-      await saveContentToSupabase(scripts, selectedScriptId, evaluation);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('ユーザーが認証されていません');
+      }
+
+      // Save content first
+      const scriptData = {
+        scripts: scripts,
+        selectedScript: selectedScriptId,
+        evaluation: evaluation
+      };
+
+      const contentData = {
+        project_id: projectId,
+        stage_type: 'script',
+        content: scriptData,
+        status: 'completed',
+        is_ai_generated: true,
+        created_by: user.id,
+        last_edited_by: user.id,
+      };
+
+      if (contentId) {
+        const { error: updateError } = await supabase
+          .from('project_contents')
+          .update({
+            content: scriptData,
+            status: 'completed',
+            last_edited_by: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', contentId);
+
+        if (updateError) throw updateError;
+      } else {
+        const { data: newContent, error: insertError } = await supabase
+          .from('project_contents')
+          .insert([contentData])
+          .select('id')
+          .single();
+
+        if (insertError) throw insertError;
+        if (newContent) setContentId(newContent.id);
+      }
       
-      // 次にプロジェクトステージを完了に更新
+      // Update project stage using the new API
       const response = await fetch(`/api/projects/${projectId}`, {
         method: 'PUT',
         headers: {
@@ -477,6 +799,8 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
         body: JSON.stringify({
           stage: 6, // 全ステージ完了状態として6に設定
           status: 'プロジェクト完了',
+          stageType: 'script',
+          content: scriptData,
         }),
       });
 
@@ -505,30 +829,12 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
   const handleEvaluateScript = async () => {
     setEvaluationLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // TODO: Implement AI evaluation API call
-      const mockEvaluation = {
-        expression: Math.floor(Math.random() * 3) + 8, // 8-10点
-        structure: Math.floor(Math.random() * 3) + 7, // 7-9点
-        information: Math.floor(Math.random() * 3) + 8, // 8-10点
-        quality: Math.floor(Math.random() * 3) + 8, // 8-10点
-        education: Math.floor(Math.random() * 3) + 7, // 7-9点
-        creative: Math.floor(Math.random() * 3) + 8, // 8-10点
-        total: 0,
-        comment: `広告台本の評価結果：\n\n**強み**\n- 魅力的な表現で視聴者の関心を引く構成\n- 論理的な流れで説得力がある\n- 適切な情報量で飽きさせない\n\n**改善点**\n- より具体的な数値データの活用\n- 感情的な訴求をさらに強化\n- クリエイティブな要素の追加検討\n\n**総合評価**\nターゲットに響く効果的な台本として高く評価できます。`
-      };
-      
-      mockEvaluation.total = Math.round(
-        (mockEvaluation.expression + mockEvaluation.structure + mockEvaluation.information + 
-         mockEvaluation.quality + mockEvaluation.education + mockEvaluation.creative) / 6 * 10
-      ) / 10;
-      
-      setEvaluation(mockEvaluation);
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       toast({
-        title: "評価完了",
-        description: "広告台本の評価が完了しました。",
+        title: "料金プランをスタンダード以上としてください",
+        description: "台本評価機能はスタンダードプラン以上でご利用いただけます。",
+        variant: "destructive",
       });
     } catch (error) {
       toast({
@@ -564,25 +870,74 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
       return;
     }
 
+    const currentScript = getCurrentScript();
+    if (!currentScript.trim()) {
+      toast({
+        title: "編集対象がありません",
+        description: "先にスクリプトを生成してください。",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setAiEditLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const response = await fetch('/api/text-edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: currentScript,
+          instruction: aiEditPrompt
+        })
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'AI編集に失敗しました';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          console.error('Error parsing error response:', parseError);
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
       
-      // TODO: Implement AI editing API call
-      const currentScript = getCurrentScript();
-      const editedScript = currentScript + '\n\n<!-- AI編集が適用されました -->';
-      updateCurrentScript(editedScript);
+      if (!result || !result.editedContent) {
+        throw new Error('APIから有効なレスポンスが返されませんでした');
+      }
+      
+      // 差分を検出
+      const diff = detectLineDiff(currentScript, result.editedContent);
+      
+      if (!diff.hasChanges) {
+        toast({
+          title: "変更なし",
+          description: "AIによる変更は検出されませんでした。",
+        });
+        setAiEditPrompt('');
+        return;
+      }
+      
+      // 変更を保留状態にして承認待ちにする
+      setOriginalContent(currentScript);
+      setPendingChanges(result.editedContent);
+      setDiffResult(diff);
+      setShowDiffPreview(true);
       
       toast({
         title: "AI編集完了",
-        description: `${aiEditMode === 'ask' ? 'Ask' : 'Agent'}モードで編集を適用しました。`,
+        description: "変更内容を確認して承認または拒否してください。",
       });
       
       setAiEditPrompt('');
     } catch (error) {
+      console.error('AI edit error:', error);
       toast({
         title: "AI編集エラー",
-        description: "編集に失敗しました。",
+        description: error instanceof Error ? error.message : "編集に失敗しました。",
         variant: "destructive",
       });
     } finally {
@@ -590,25 +945,43 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
     }
   };
 
+  const handleApproveChanges = () => {
+    if (pendingChanges && diffResult) {
+      const cleanContent = generateCleanText(diffResult.chunks);
+      updateCurrentScript(cleanContent);
+      setPendingChanges(null);
+      setDiffResult(null);
+      setShowDiffPreview(false);
+      setOriginalContent('');
+      
+      toast({
+        title: "変更を承認",
+        description: "AI編集の変更が適用されました。",
+      });
+    }
+  };
+
+  const handleRejectChanges = () => {
+    setPendingChanges(null);
+    setDiffResult(null);
+    setShowDiffPreview(false);
+    setOriginalContent('');
+    
+    toast({
+      title: "変更を拒否",
+      description: "元のスクリプトを維持します。",
+    });
+  };
+
   const handleGenerateThumbnail = async () => {
     setThumbnailLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // TODO: Implement DALL-E 3 API call
-      const newThumbnail = {
-        id: Date.now().toString(),
-        url: `https://picsum.photos/400/600?random=${Date.now()}`, // Mock image
-        ratio: selectedRatio,
-        prompt: thumbnailPrompt || '自動生成されたプロンプト',
-        createdAt: new Date().toISOString(),
-      };
-      
-      setThumbnails(prev => [newThumbnail, ...prev]);
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       toast({
-        title: "サムネイル生成完了",
-        description: `${selectedRatio}比率のサムネイルを生成しました。`,
+        title: "料金プランをスタンダード以上としてください",
+        description: "サムネイル生成機能はスタンダードプラン以上でご利用いただけます。",
+        variant: "destructive",
       });
     } catch (error) {
       toast({
@@ -650,6 +1023,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
 
   // 初期読み込み中の表示
   if (isInitialLoading) {
+    console.log('Rendering loading state...');
     return (
       <div className="space-y-6">
         <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
@@ -675,7 +1049,14 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
     );
   }
 
-  // 青いボタンの生成画面は完全に削除しました（画像2つ目の編集画面のみを表示）
+  // 生成画面と編集画面の統合 - 常に編集可能な状態で表示
+  console.log('Rendering main component with state:', {
+    scriptsCount: scripts.length,
+    selectedScriptId,
+    isScriptGenerated,
+    contentId,
+    hasEvaluation: !!evaluation
+  });
 
   return (
     <div className="space-y-6">
@@ -703,12 +1084,18 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
               />
             </div>
             <Button
-              onClick={handleRegenerate}
+              onClick={() => {
+                if (scripts.length === 0) {
+                  loadOrGenerateScript();
+                } else {
+                  handleRegenerate();
+                }
+              }}
               disabled={regenerateLoading}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0"
+              className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${regenerateLoading ? 'animate-spin' : ''}`} />
-              指示を反映して生成
+              {scripts.length === 0 ? 'コンテンツを生成' : '指示を反映して生成'}
             </Button>
           </div>
         </CardContent>
@@ -736,7 +1123,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                     variant="outline"
                     size="sm"
                     className="border-blue-500/50 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400"
-                    disabled={saveLoading}
+                    disabled={saveLoading || scripts.length === 0}
                   >
                     {saveLoading ? "保存中..." : "進捗を保存"}
                   </Button>
@@ -755,9 +1142,10 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4 mb-4">
-                <div className="flex items-center space-x-2">
-                    {scripts.map((script) => (
+                  {scripts.length > 0 ? (
+                    <div className="space-y-4 mb-4">
+                      <div className="flex items-center space-x-2">
+                        {scripts.map((script) => (
                       <Button
                         key={script.id}
                         variant={selectedScriptId === script.id ? "default" : "outline"}
@@ -810,138 +1198,187 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                         </div>
                       </Button>
                     ))}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleAddVariation()}
-                      disabled={addVariationLoading}
-                      className="border-white/30 text-white hover:bg-white/10"
-                    >
-                      {addVariationLoading ? "生成中..." : "+ 新しいバリエーション"}
-                    </Button>
-                </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleAddVariation()}
+                          disabled={addVariationLoading}
+                          className="border-white/30 text-white hover:bg-white/10"
+                        >
+                          <Bot className="w-4 h-4 mr-2" />
+                          {addVariationLoading ? "AI生成中..." : "+ 新しいバリエーション"}
+                        </Button>
+                      </div>
                   
-                <div className="flex items-center space-x-2 flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowPreview(!showPreview)}
-                      className="border-white/30 text-white hover:bg-white/10"
-                    >
-                      {showPreview ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
-                      {showPreview ? 'エディター' : 'プレビュー'}
-                    </Button>
-                    {!isEditing && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setIsEditing(true)}
-                        className="border-white/30 text-white hover:bg-white/10"
-                      >
-                        <Edit className="w-4 h-4 mr-2" />
-                        編集
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleRegenerate}
-                      disabled={regenerateLoading}
-                      className="border-white/30 text-white hover:bg-white/10"
-                    >
-                      <RefreshCw className={`w-4 h-4 mr-2 ${regenerateLoading ? 'animate-spin' : ''}`} />
-                      再生成
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCopyScript}
-                      className="border-white/30 text-white hover:bg-white/10"
-                    >
-                      <Copy className="w-4 h-4 mr-2" />
-                      コピー
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleExportScript}
-                      className="border-white/30 text-white hover:bg-white/10"
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      エクスポート
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleDeleteScript}
-                      className="border-red-500/30 text-red-400 hover:bg-red-500/10"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      削除
-                    </Button>
-                    {isEditing && (
-                      <Button
-                        size="sm"
-                        onClick={handleSave}
-                        disabled={saveLoading}
-                        className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
-                      >
-                        {saveLoading ? "保存中..." : "保存"}
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleEvaluateScript}
-                      disabled={evaluationLoading}
-                      className="border-white/30 text-white hover:bg-white/10"
-                    >
-                      {evaluationLoading ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                          評価中...
-                        </>
-                      ) : (
-                        <>
-                          <BarChart3 className="w-4 h-4 mr-2" />
-                          AI評価
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="border border-white/10 rounded-lg p-4 bg-white/5">
-                  {showPreview ? (
-                    <div className="prose prose-invert max-w-none">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {selectedScriptId ? scripts.find(s => s.id === selectedScriptId)?.content ?? '' : ''}
-                      </ReactMarkdown>
+                      <div className="flex items-center space-x-2 flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowPreview(!showPreview)}
+                          className="border-white/30 text-white hover:bg-white/10"
+                        >
+                          {showPreview ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
+                          {showPreview ? 'エディター' : 'プレビュー'}
+                        </Button>
+                        {!isEditing && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsEditing(true)}
+                            className="border-white/30 text-white hover:bg-white/10"
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            編集
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleRegenerate}
+                          disabled={regenerateLoading}
+                          className="border-white/30 text-white hover:bg-white/10"
+                        >
+                          <RefreshCw className={`w-4 h-4 mr-2 ${regenerateLoading ? 'animate-spin' : ''}`} />
+                          再生成
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleCopyScript}
+                          className="border-white/30 text-white hover:bg-white/10"
+                        >
+                          <Copy className="w-4 h-4 mr-2" />
+                          コピー
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleExportScript}
+                          className="border-white/30 text-white hover:bg-white/10"
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          エクスポート
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDeleteScript}
+                          className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          削除
+                        </Button>
+                        {isEditing && (
+                          <Button
+                            size="sm"
+                            onClick={handleSave}
+                            disabled={saveLoading || scripts.length === 0}
+                            className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0"
+                          >
+                            {saveLoading ? "保存中..." : "保存"}
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleEvaluateScript}
+                          disabled={evaluationLoading}
+                          className="border-white/30 text-white hover:bg-white/10"
+                        >
+                          {evaluationLoading ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                              評価中...
+                            </>
+                          ) : (
+                            <>
+                              <BarChart3 className="w-4 h-4 mr-2" />
+                              AI評価
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   ) : (
-                    <textarea
-                      value={selectedScriptId ? scripts.find(s => s.id === selectedScriptId)?.content ?? '' : ''}
-                      onChange={(e) => {
-                        if (!selectedScriptId) return;
-                        const updatedScripts = scripts.map(script => {
-                          if (script.id === selectedScriptId) {
-                            return {
-                              ...script,
-                              content: e.target.value
-                            };
-                          }
-                          return script;
-                        });
-                        setScripts(updatedScripts);
-                      }}
-                      className="w-full h-96 bg-transparent text-white resize-none focus:outline-none"
-                      placeholder="広告台本をマークダウン形式で編集..."
-                      disabled={!isEditing}
-                    />
+                    <div className="text-center py-8 text-gray-400">
+                      <Video className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>広告台本がまだ生成されていません。</p>
+                      <p className="text-sm mt-2">「コンテンツを生成」ボタンを押して台本を生成してください。</p>
+                    </div>
                   )}
-                </div>
 
-              {isEditing && (
+                {scripts.length > 0 && (
+                  <div className="border border-white/10 rounded-lg p-4 bg-white/5">
+                    {showDiffPreview && diffResult ? (
+                      <div>
+                        <div className="flex items-center justify-between mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                          <div className="flex items-center space-x-2">
+                            <Bot className="w-5 h-5 text-blue-400" />
+                            <span className="text-blue-300 font-medium">AI編集の差分を確認</span>
+                          </div>
+                          <div className="flex space-x-2">
+                            <Button
+                              onClick={handleApproveChanges}
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              <Check className="w-4 h-4 mr-1" />
+                              承認
+                            </Button>
+                            <Button
+                              onClick={handleRejectChanges}
+                              size="sm"
+                              variant="outline"
+                              className="border-red-500/50 text-red-300 hover:bg-red-500/10"
+                            >
+                              <X className="w-4 h-4 mr-1" />
+                              拒否
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="prose prose-invert max-w-none">
+                          <DiffDisplay diffResult={diffResult} />
+                        </div>
+                        <div className="mt-4 p-3 bg-gray-500/10 border border-gray-500/20 rounded-lg text-sm text-gray-400">
+                          <p><span className="text-green-400">緑色</span>: 追加された部分</p>
+                          <p><span className="text-red-400">赤色</span>: 削除された部分</p>
+                          <p>網掛けなし: 変更されない部分</p>
+                        </div>
+                      </div>
+                    ) : showPreview ? (
+                      <div className="prose prose-invert max-w-none">
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={standardMarkdownComponents}
+                        >
+                          {selectedScriptId ? scripts.find(s => s.id === selectedScriptId)?.content ?? '' : ''}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <textarea
+                        value={selectedScriptId ? scripts.find(s => s.id === selectedScriptId)?.content ?? '' : ''}
+                        onChange={(e) => {
+                          if (!selectedScriptId) return;
+                          const updatedScripts = scripts.map(script => {
+                            if (script.id === selectedScriptId) {
+                              return {
+                                ...script,
+                                content: e.target.value
+                              };
+                            }
+                            return script;
+                          });
+                          setScripts(updatedScripts);
+                        }}
+                        className="w-full h-96 bg-transparent text-white resize-none focus:outline-none"
+                        placeholder="広告台本をマークダウン形式で編集..."
+                        disabled={!isEditing}
+                      />
+                    )}
+                  </div>
+                )}
+
+              {scripts.length > 0 && isEditing && (
                 <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                   <p className="text-blue-300 text-sm">
                     <strong>編集モード:</strong> 台本の内容を自由に編集できます。
@@ -969,38 +1406,11 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-white">編集モード</Label>
-                  <Select value={aiEditMode} onValueChange={(value: 'ask' | 'agent') => setAiEditMode(value)}>
-                    <SelectTrigger className="bg-white/5 border-white/20 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-gray-800 border-white/10">
-                      <SelectItem value="ask" className="text-white hover:bg-white/10">
-                        <div className="flex items-center">
-                          <MessageSquare className="w-4 h-4 mr-2" />
-                          Askモード（Q&A形式）
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="agent" className="text-white hover:bg-white/10">
-                        <div className="flex items-center">
-                          <Bot className="w-4 h-4 mr-2" />
-                          Agentモード（自動修正）
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
                   <Label className="text-white">編集指示</Label>
                   <Textarea
                     value={aiEditPrompt}
                     onChange={(e) => setAiEditPrompt(e.target.value)}
-                    placeholder={
-                      aiEditMode === 'ask' 
-                        ? "例: もっとカジュアルなトーンにしてください" 
-                        : "例: 20代女性向けに調整"
-                    }
+                    placeholder="例: もっとカジュアルなトーンにしてください"
                     className="bg-white/5 border-white/20 text-white placeholder-gray-400 min-h-[100px]"
                     rows={4}
                   />
@@ -1008,7 +1418,7 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
 
                 <Button
                   onClick={handleAiEdit}
-                  disabled={aiEditLoading || !aiEditPrompt.trim()}
+                  disabled={aiEditLoading || !aiEditPrompt.trim() || showDiffPreview}
                   className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0"
                 >
                   {aiEditLoading ? (
@@ -1018,15 +1428,20 @@ export function ScriptGenerationStage({ projectId, onComplete }: ScriptGeneratio
                     </>
                   ) : (
                     <>
-                      {aiEditMode === 'ask' ? <MessageSquare className="w-4 h-4 mr-2" /> : <Bot className="w-4 h-4 mr-2" />}
+                      <Bot className="w-4 h-4 mr-2" />
                       AI編集実行
                     </>
                   )}
                 </Button>
 
                 <div className="text-xs text-gray-400 space-y-1">
-                  <p><strong>Askモード:</strong> 具体的な修正依頼を入力</p>
                   <p><strong>Agentモード:</strong> AIが自動で最適化提案</p>
+                  <p>• <span className="text-green-400">緑色</span>: 追加される部分</p>
+                  <p>• <span className="text-red-400">赤色</span>: 削除される部分</p>
+                  <p>• 網掛けなし: 変更されない部分</p>
+                  {showDiffPreview && (
+                    <p className="text-yellow-400 mt-2">変更の承認または拒否をしてください</p>
+                  )}
                 </div>
               </CardContent>
             </Card>

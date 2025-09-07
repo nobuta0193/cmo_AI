@@ -75,11 +75,11 @@ class GeminiClient extends AIClient {
     }
 
     try {
-      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
+      // Gemini APIは query parameter でAPI keyを渡す
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify({
           contents: [{
@@ -90,11 +90,38 @@ class GeminiClient extends AIClient {
         })
       });
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Gemini API error:', errorData);
+        return {
+          content: '',
+          error: `Gemini API error: ${errorData.error?.message || response.statusText}`
+        };
+      }
+
       const data = await response.json();
+      console.log('Gemini API response:', data);
+      
+      // レスポンス構造をチェック
+      if (!data.candidates || !data.candidates[0]) {
+        return {
+          content: '',
+          error: 'Gemini API returned no candidates'
+        };
+      }
+      
+      if (!data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0]) {
+        return {
+          content: '',
+          error: 'Gemini API returned invalid content structure'
+        };
+      }
+      
       return {
         content: data.candidates[0].content.parts[0].text
       };
     } catch (error) {
+      console.error('Gemini client error:', error);
       return {
         content: '',
         error: error instanceof Error ? error.message : 'Unknown error occurred'

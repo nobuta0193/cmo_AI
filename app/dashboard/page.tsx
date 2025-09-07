@@ -41,6 +41,47 @@ const fetchProjects = async () => {
   }
 };
 
+// 統計データを取得する関数
+const fetchStats = async (): Promise<DashboardStats | null> => {
+  try {
+    // Supabaseクライアントで認証状態を確認
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.log('User not authenticated, skipping stats fetch');
+      return null;
+    }
+
+    const response = await fetch('/api/dashboard/stats', {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      console.error('Stats API response not ok:', response.status, response.statusText);
+      
+      // 認証エラーの場合はnullを返す（フォールバック値を使用）
+      if (response.status === 401) {
+        console.log('Authentication required for stats');
+        return null;
+      }
+      
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('Stats fetch error:', errorData);
+      return null;
+    }
+    
+    const stats: DashboardStats = await response.json();
+    console.log('Fetched stats successfully:', stats);
+    return stats;
+  } catch (error) {
+    console.error('Error fetching stats:', error);
+    return null;
+  }
+};
+
 // 古いモックデータ（削除予定）
 const mockProjects = [
   {
@@ -124,6 +165,29 @@ type SortOption = 'updatedAt' | 'createdAt' | 'stage' | 'assignee' | 'lastEditor
 type SortOrder = 'asc' | 'desc';
 type ViewMode = 'large' | 'medium' | 'small' | 'list';
 
+interface DashboardStats {
+  totalProjects: {
+    value: number;
+    change: number;
+    changeType: 'increase' | 'decrease';
+  };
+  completedScripts: {
+    value: number;
+    change: number;
+    changeType: 'increase' | 'decrease';
+  };
+  teamMembers: {
+    value: number;
+    change: number;
+    changeType: 'increase' | 'decrease';
+  };
+  averageCompletionTime: {
+    value: number;
+    change: number;
+    changeType: 'increase' | 'decrease';
+  };
+}
+
 export default function DashboardPage() {
   const [filters, setFilters] = useState({
     searchQuery: '',
@@ -143,16 +207,27 @@ export default function DashboardPage() {
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
-    const loadProjects = async () => {
+    const loadData = async () => {
       setLoading(true);
-      const data = await fetchProjects();
-      setProjects(data);
+      setStatsLoading(true);
+      
+      // プロジェクトと統計データを並行して取得
+      const [projectsData, statsData] = await Promise.all([
+        fetchProjects(),
+        fetchStats()
+      ]);
+      
+      setProjects(projectsData);
+      setStats(statsData);
       setLoading(false);
+      setStatsLoading(false);
     };
 
-    loadProjects();
+    loadData();
   }, []);
 
   const filteredAndSortedProjects = projects
@@ -244,7 +319,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <DashboardLayout onFiltersChange={handleFiltersChange}>
+    <DashboardLayout onFiltersChange={handleFiltersChange} projects={projects}>
       <div className="space-y-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -274,38 +349,74 @@ export default function DashboardPage() {
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <StatsCard
-                title="総プロジェクト数"
-                value="12"
-                change="+3"
-                changeType="increase"
-                icon={FolderOpen}
-                description="今月"
-              />
-              <StatsCard
-                title="完成台本数"
-                value="28"
-                change="+8"
-                changeType="increase"
-                icon={Video}
-                description="今月"
-              />
-              <StatsCard
-                title="チームメンバー"
-                value="6"
-                change="+1"
-                changeType="increase"
-                icon={Users}
-                description="アクティブ"
-              />
-              <StatsCard
-                title="平均完成時間"
-                value="2.3日"
-                change="-0.5日"
-                changeType="decrease"
-                icon={Clock}
-                description="短縮"
-              />
+              {statsLoading ? (
+                // ローディング中のスケルトン
+                Array.from({ length: 4 }).map((_, index) => (
+                  <Card key={index} className="bg-white/5 border-white/10 backdrop-blur-sm">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <div className="h-4 bg-white/10 rounded animate-pulse w-24"></div>
+                      <div className="h-4 w-4 bg-white/10 rounded animate-pulse"></div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="h-8 bg-white/10 rounded animate-pulse w-16"></div>
+                        <div className="flex items-center space-x-2">
+                          <div className="h-5 bg-white/10 rounded animate-pulse w-12"></div>
+                          <div className="h-3 bg-white/10 rounded animate-pulse w-16"></div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                // statsがnullの場合はフォールバック値を表示
+                <>
+                  <StatsCard
+                    title="総プロジェクト数"
+                    value={projects.length.toString()}
+                    change={`+${Math.max(0, projects.filter(p => {
+                      const createdAt = new Date(p.createdAt);
+                      const currentMonth = new Date();
+                      currentMonth.setDate(1);
+                      currentMonth.setHours(0, 0, 0, 0);
+                      return createdAt >= currentMonth;
+                    }).length)}`}
+                    changeType="increase"
+                    icon={FolderOpen}
+                    description="今月"
+                  />
+                  <StatsCard
+                    title="完成台本数"
+                    value={projects.filter(p => p.stage >= 5).length.toString()}
+                    change={`+${Math.max(0, projects.filter(p => {
+                      const createdAt = new Date(p.createdAt);
+                      const currentMonth = new Date();
+                      currentMonth.setDate(1);
+                      currentMonth.setHours(0, 0, 0, 0);
+                      return createdAt >= currentMonth && p.stage >= 5;
+                    }).length)}`}
+                    changeType="increase"
+                    icon={Video}
+                    description="今月"
+                  />
+                  <StatsCard
+                    title="チームメンバー"
+                    value="1"
+                    change="+0"
+                    changeType="increase"
+                    icon={Users}
+                    description="アクティブ"
+                  />
+                  <StatsCard
+                    title="平均完成時間"
+                    value="2.3日"
+                    change="-0.5日"
+                    changeType="decrease"
+                    icon={Clock}
+                    description="短縮"
+                  />
+                </>
+              )}
             </div>
           </CollapsibleContent>
         </Collapsible>
@@ -359,7 +470,18 @@ export default function DashboardPage() {
           ) : filteredAndSortedProjects.length > 0 ? (
             <div className={`grid ${getGridClasses(viewMode)} gap-6`}>
               {filteredAndSortedProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} viewMode={viewMode} />
+                <ProjectCard 
+                  key={project.id} 
+                  project={project} 
+                  viewMode={viewMode}
+                  onProjectUpdated={() => {
+                    // プロジェクトリストと統計データを更新
+                    Promise.all([
+                      fetchProjects().then(data => setProjects(data)),
+                      fetchStats().then(data => setStats(data))
+                    ]);
+                  }}
+                />
               ))}
             </div>
           ) : (
@@ -388,8 +510,11 @@ export default function DashboardPage() {
         onOpenChange={(open) => {
           setShowCreateDialog(open);
           if (!open) {
-            // プロジェクトリストを更新
-            fetchProjects().then(data => setProjects(data));
+            // プロジェクトリストと統計データを更新
+            Promise.all([
+              fetchProjects().then(data => setProjects(data)),
+              fetchStats().then(data => setStats(data))
+            ]);
           }
         }}
       />

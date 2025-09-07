@@ -173,7 +173,7 @@ export function ProjectDetailClient({ projectId }: ProjectDetailClientProps) {
           <WorkflowStepper
             stages={workflowStages}
             currentStage={currentStage}
-            completedStage={project.stage}
+            completedStage={project.stage >= 6 ? 6 : Math.max(0, project.stage - 1)}
             onStageClick={handleStageChange}
           />
         </Card>

@@ -76,10 +76,20 @@ async function fetchWebContent(url: string): Promise<string> {
 
 // AIを使用してサマリーを生成する関数
 async function generateSummary(initialData: any[], aiApiKey: string, model: string = 'gemini-1.5-flash'): Promise<string> {
+  // 空のデータチェック
+  if (!initialData || initialData.length === 0) {
+    throw new Error('初期データが提供されていません');
+  }
+  
+  const validItems = initialData.filter(item => item.content && item.content.trim() !== '');
+  if (validItems.length === 0) {
+    throw new Error('有効な初期データが見つかりません');
+  }
+  
   // 初期データを統合
   let combinedData = '';
   
-  for (const item of initialData) {
+  for (const item of validItems) {
     combinedData += `\n\n## ${item.title} (${item.data_type})\n`;
     
     if (item.data_type === 'url' && item.content.startsWith('http')) {
@@ -177,7 +187,6 @@ export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  console.log('POST /api/projects/[id]/summary: Start', { projectId: params.id });
   
   try {
     const cookieStore = cookies();
@@ -251,6 +260,18 @@ export async function POST(
       );
     }
 
+    // 初期データの内容チェック
+    const hasValidInitialData = initialData.some(item => 
+      item.content && item.content.trim() !== ''
+    );
+    
+    if (!hasValidInitialData) {
+      return NextResponse.json(
+        { error: '初期データの内容が空です。ステージ1で有効なデータを登録してください。' },
+        { status: 400 }
+      );
+    }
+
     // デフォルトモデルに対応するAPIキーを取得
     const model = apiSettings.default_model || 'gemini-1.5-flash';
     let apiKey = '';
@@ -282,6 +303,18 @@ export async function POST(
       );
     }
 
+    // AI生成直前に再度データの有効性を確認
+    const finalValidationResult = initialData.some(item => 
+      item.content && item.content.trim() !== ''
+    );
+    
+    if (!finalValidationResult) {
+      return NextResponse.json(
+        { error: '初期データの内容が空です。ステージ1で有効なデータを登録してください。' },
+        { status: 400 }
+      );
+    }
+    
     // AIサマリーを生成
     const summary = await generateSummary(initialData, apiKey, model);
 
@@ -309,7 +342,6 @@ export async function POST(
       );
     }
 
-    console.log('Summary generated and saved successfully');
 
     return NextResponse.json({
       success: true,

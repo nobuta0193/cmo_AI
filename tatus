@@ -1,3 +1,8 @@
 * [32mmain[m
   [31mremotes/origin/HEAD[m -> origin/main
   [31mremotes/origin/main[m
+[33m4d96b55[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/develop[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mdevelop[m[33m)[m feat: 商品情報サマリー自動生成機能とデータ表示改善
+[33mca895cc[m Update project workflow and script generation functionality
+[33m35b9d34[m feat: プロジェクト管理機能の強化とステージ管理の更新
+[33m574476e[m データベースとの接続が可能となる
+[33mcee0a71[m feat: ステージの進行制限を解除し、すべてのステージに最初からアクセス可能に変更

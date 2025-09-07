@@ -9,95 +9,75 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Package, RefreshCw, Edit, Eye, EyeOff, MessageSquare, Bot } from 'lucide-react';
+import { Package, RefreshCw, Edit, Eye, EyeOff, Bot, Check, X, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Components } from 'react-markdown';
 import { createBrowserClient } from '@supabase/ssr';
+import { detectLineDiff, markupDiffForDisplay, generateCleanText, DiffResult } from '@/lib/diff-utils';
 
 interface ProductSummaryStageProps {
   projectId: string;
   onComplete: () => void;
 }
 
-const mockGeneratedContent = `# 商品情報サマリー
+// モックデータは削除されました
 
-## サービスの特徴
+// 差分表示用のカスタムコンポーネント
+const DiffDisplay = ({ diffResult }: { diffResult: DiffResult }) => {
+  return (
+    <div className="space-y-1">
+      {diffResult.chunks.map((chunk, index) => {
+        let className = "";
+        let prefix = "";
+        
+        switch (chunk.type) {
+          case 'added':
+            className = "bg-green-100/20 border-l-4 border-green-400 text-green-200 pl-4 py-1";
+            prefix = "+ ";
+            break;
+          case 'removed':
+            className = "bg-red-100/20 border-l-4 border-red-400 text-red-200 pl-4 py-1 line-through";
+            prefix = "- ";
+            break;
+          case 'unchanged':
+            className = "";
+            prefix = "";
+            break;
+        }
+        
+        return (
+          <div key={index} className={className}>
+            {prefix}{chunk.content}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
-### 主要な特徴
-- **高品質なビタミンD3配合**: 1粒あたり1000IUの高濃度ビタミンD3を配合
-- **吸収率向上**: 独自の製法により体内吸収率を30%向上
-- **無添加処方**: 人工着色料、保存料、香料を一切使用しない安心設計
-- **小粒設計**: 飲みやすい小粒タイプで継続しやすい
-
-### 品質管理
-- GMP認定工場での製造
-- 第三者機関による品質検査実施
-- 国内製造による安心・安全
-
-## ユーザーメリット
-
-### 健康面でのメリット
-1. **骨の健康維持**: カルシウムの吸収を促進し、骨密度の維持をサポート
-2. **免疫力向上**: ビタミンDの免疫調整機能により、体の防御力を強化
-3. **筋力維持**: 筋肉の機能維持に必要なビタミンDを効率的に補給
-4. **気分の安定**: セロトニンの生成をサポートし、メンタルヘルスにも貢献
-
-### 生活面でのメリット
-- **手軽な摂取**: 1日1粒で必要量を摂取可能
-- **コストパフォーマンス**: 1日あたり約33円の経済的な価格設定
-- **持ち運び便利**: 小さなボトルで外出先でも摂取しやすい
-
-## 実績・権威性
-
-### 販売実績
-- **累計販売数**: 50万個突破（2024年1月時点）
-- **リピート率**: 85%の高いリピート率
-- **顧客満足度**: 4.8/5.0の高評価
-
-### 専門家の推奨
-- 栄養学博士 田中先生による推奨コメント
-- 日本栄養士会認定栄養士による品質評価
-- 医療従事者の92%が推奨
-
-### メディア掲載
-- 健康雑誌「ヘルスケア」特集記事掲載
-- テレビ番組「健康の秘訣」で紹介
-- インフルエンサー100名以上が愛用
-
-## オファー情報
-
-### 特別価格キャンペーン
-- **通常価格**: 3,980円（税込）
-- **初回限定価格**: 1,980円（税込）50%OFF
-- **定期コース**: 2回目以降も20%OFF（3,184円）
-
-### 特典内容
-1. **送料無料**: 全国どこでも送料無料
-2. **30日間返金保証**: 満足いただけない場合は全額返金
-3. **定期コース特典**: 
-   - いつでも解約・変更可能
-   - お届け周期の調整可能
-   - 専用サポートダイヤル利用可能
-
-### 限定特典
-- **今だけ**: ビタミンD摂取ガイドブック無料プレゼント
-- **先着1000名**: オリジナルピルケースプレゼント
-- **LINE友達追加**: 500円OFFクーポン配布中`;
+// 標準のMarkdownコンポーネント（差分表示なし）
+const standardMarkdownComponents: Components = {};
 
 export function ProductSummaryStage({ projectId, onComplete }: ProductSummaryStageProps) {
   const [content, setContent] = useState('');
+  const [originalContent, setOriginalContent] = useState('');
   const [regenerateLoading, setRegenerateLoading] = useState(false);
   const [saveProgressLoading, setSaveProgressLoading] = useState(false);
   const [completeStageLoading, setCompleteStageLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [aiEditLoading, setAiEditLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
-  const [aiEditMode, setAiEditMode] = useState<'ask' | 'agent'>('ask');
+  const [aiEditMode, setAiEditMode] = useState<'agent'>('agent');
   const [aiEditPrompt, setAiEditPrompt] = useState('');
   const [initialLoading, setInitialLoading] = useState(true);
   const [contentId, setContentId] = useState<string | null>(null);
+  const [pendingChanges, setPendingChanges] = useState<string | null>(null);
+  const [diffResult, setDiffResult] = useState<DiffResult | null>(null);
+  const [showDiffPreview, setShowDiffPreview] = useState(false);
   const { toast } = useToast();
 
   const supabase = createBrowserClient(
@@ -173,6 +153,16 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
   const handleRegenerate = async () => {
     setRegenerateLoading(true);
     try {
+      // プロジェクトIDの事前チェック
+      if (!projectId) {
+        toast({
+          title: "エラー",
+          description: "プロジェクトIDが見つかりません。",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // AIサマリー生成APIを呼び出し
       const response = await fetch(`/api/projects/${projectId}/summary`, {
         method: 'POST',
@@ -183,11 +173,57 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || '生成に失敗しました');
+        let errorMessage = '生成に失敗しました';
+        let errorData = null;
+        
+        try {
+          const responseText = await response.text();
+          
+          if (responseText) {
+            try {
+              errorData = JSON.parse(responseText);
+              errorMessage = errorData.error || errorMessage;
+            } catch (jsonError) {
+              errorMessage = responseText || errorMessage;
+            }
+          }
+        } catch (parseError) {
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        
+        // 400エラー（バリデーションエラー）の場合は、トーストで表示してreturn
+        if (response.status === 400) {
+          let errorTitle = "生成エラー";
+          
+          if (errorMessage.includes('一次情報が必要です') || 
+              errorMessage.includes('初期データ') || 
+              errorMessage.includes('商品情報サマリー') || 
+              errorMessage.includes('教育コンテンツサマリー')) {
+            errorTitle = "一次情報が必要です";
+          }
+          
+          toast({
+            title: errorTitle,
+            description: errorMessage,
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
+      
+      if (!result.summary) {
+        toast({
+          title: "エラー",
+          description: "サマリーが生成されませんでした。",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       setContent(result.summary);
       setContentId(result.contentId);
       
@@ -280,28 +316,155 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
       return;
     }
 
+    if (!content.trim()) {
+      toast({
+        title: "編集対象がありません",
+        description: "先にコンテンツを生成してください。",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setAiEditLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const response = await fetch('/api/text-edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: content,
+          instruction: aiEditPrompt
+        })
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'AI編集に失敗しました';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          console.error('Error parsing error response:', parseError);
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
       
-      // TODO: Implement AI editing API call
-      const editedContent = content + '\n\n<!-- AI編集が適用されました -->';
-      setContent(editedContent);
+      if (!result || !result.editedContent) {
+        throw new Error('APIから有効なレスポンスが返されませんでした');
+      }
+      
+      // 差分を検出
+      const diff = detectLineDiff(content, result.editedContent);
+      
+      if (!diff.hasChanges) {
+        toast({
+          title: "変更なし",
+          description: "AIによる変更は検出されませんでした。",
+        });
+        setAiEditPrompt('');
+        return;
+      }
+      
+      // 変更を保留状態にして承認待ちにする
+      setOriginalContent(content);
+      setPendingChanges(result.editedContent);
+      setDiffResult(diff);
+      setShowDiffPreview(true);
       
       toast({
         title: "AI編集完了",
-        description: `${aiEditMode === 'ask' ? 'Ask' : 'Agent'}モードで編集を適用しました。`,
+        description: "変更内容を確認して承認または拒否してください。",
       });
       
       setAiEditPrompt('');
     } catch (error) {
+      console.error('AI edit error:', error);
       toast({
         title: "AI編集エラー",
-        description: "編集に失敗しました。",
+        description: error instanceof Error ? error.message : "編集に失敗しました。",
         variant: "destructive",
       });
     } finally {
       setAiEditLoading(false);
+    }
+  };
+
+  const handleApproveChanges = () => {
+    if (pendingChanges && diffResult) {
+      const cleanContent = generateCleanText(diffResult.chunks);
+      setContent(cleanContent);
+      setPendingChanges(null);
+      setDiffResult(null);
+      setShowDiffPreview(false);
+      setOriginalContent('');
+      
+      toast({
+        title: "変更を承認",
+        description: "AI編集の変更が適用されました。",
+      });
+    }
+  };
+
+  const handleRejectChanges = () => {
+    setPendingChanges(null);
+    setDiffResult(null);
+    setShowDiffPreview(false);
+    setOriginalContent('');
+    
+    toast({
+      title: "変更を拒否",
+      description: "元のコンテンツを維持します。",
+    });
+  };
+
+  const handleDelete = async () => {
+    if (!content.trim()) {
+      toast({
+        title: "削除対象がありません",
+        description: "削除するコンテンツがありません。",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setDeleteLoading(true);
+    try {
+      // コンテンツをクリア
+      setContent('');
+      setContentId(null);
+      setIsEditing(false);
+      setPendingChanges(null);
+      setDiffResult(null);
+      setShowDiffPreview(false);
+      setOriginalContent('');
+
+      // データベースからも削除
+      if (contentId) {
+        const { error: deleteError } = await supabase
+          .from('project_contents')
+          .delete()
+          .eq('id', contentId);
+
+        if (deleteError) {
+          console.error('Failed to delete content:', deleteError);
+          // エラーが発生しても、フロントエンドの状態はクリアしたままにする
+        }
+      }
+
+      toast({
+        title: "削除完了",
+        description: "商品情報サマリーを削除しました。",
+      });
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast({
+        title: "削除エラー",
+        description: "削除に失敗しました。もう一度お試しください。",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -535,6 +698,22 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
                     <RefreshCw className={`w-4 h-4 mr-2 ${regenerateLoading ? 'animate-spin' : ''}`} />
                     {content ? '再生成' : 'コンテンツを生成'}
                   </Button>
+                  {content && (
+                    <Button
+                      size="sm"
+                      onClick={handleDelete}
+                      disabled={deleteLoading}
+                      variant="outline"
+                      className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                    >
+                      {deleteLoading ? (
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4 mr-2" />
+                      )}
+                      削除
+                    </Button>
+                  )}
                   {isEditing && (
                     <Button
                       size="sm"
@@ -551,11 +730,50 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
               </div>
 
               <div className="border border-white/10 rounded-lg p-4 bg-white/5">
-                {showPreview ? (
+                {showDiffPreview && diffResult ? (
+                  <div>
+                    <div className="flex items-center justify-between mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <Bot className="w-5 h-5 text-blue-400" />
+                        <span className="text-blue-300 font-medium">AI編集の差分を確認</span>
+                      </div>
+                      <div className="flex space-x-2">
+                        <Button
+                          onClick={handleApproveChanges}
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <Check className="w-4 h-4 mr-1" />
+                          承認
+                        </Button>
+                        <Button
+                          onClick={handleRejectChanges}
+                          size="sm"
+                          variant="outline"
+                          className="border-red-500/50 text-red-300 hover:bg-red-500/10"
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          拒否
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="prose prose-invert max-w-none">
+                      <DiffDisplay diffResult={diffResult} />
+                    </div>
+                    <div className="mt-4 p-3 bg-gray-500/10 border border-gray-500/20 rounded-lg text-sm text-gray-400">
+                      <p><span className="text-green-400">緑色</span>: 追加された部分</p>
+                      <p><span className="text-red-400">赤色</span>: 削除された部分</p>
+                      <p>網掛けなし: 変更されない部分</p>
+                    </div>
+                  </div>
+                ) : showPreview ? (
                   <div className="prose prose-invert max-w-none">
                     {content ? (
                       <div>
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={standardMarkdownComponents}
+                        >
                           {content}
                         </ReactMarkdown>
                       </div>
@@ -604,38 +822,11 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-white">編集モード</Label>
-                <Select value={aiEditMode} onValueChange={(value: 'ask' | 'agent') => setAiEditMode(value)}>
-                  <SelectTrigger className="bg-white/5 border-white/20 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ask">
-                      <div className="flex items-center">
-                        <MessageSquare className="w-4 h-4 mr-2" />
-                        Askモード（Q&A形式）
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="agent">
-                      <div className="flex items-center">
-                        <Bot className="w-4 h-4 mr-2" />
-                        Agentモード（自動修正）
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
                 <Label className="text-white">編集指示</Label>
                 <Textarea
                   value={aiEditPrompt}
                   onChange={(e) => setAiEditPrompt(e.target.value)}
-                  placeholder={
-                    aiEditMode === 'ask' 
-                      ? "例: オファー情報をもっと魅力的にしてください" 
-                      : "例: B2B向けに調整"
-                  }
+                  placeholder="例: オファー情報をもっと魅力的にしてください"
                   className="bg-white/5 border-white/20 text-white placeholder-gray-400 min-h-[100px]"
                   rows={4}
                 />
@@ -643,7 +834,7 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
 
               <Button
                 onClick={handleAiEdit}
-                disabled={aiEditLoading || !aiEditPrompt.trim()}
+                disabled={aiEditLoading || !aiEditPrompt.trim() || showDiffPreview}
                 className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0"
               >
                 {aiEditLoading ? (
@@ -653,15 +844,20 @@ export function ProductSummaryStage({ projectId, onComplete }: ProductSummarySta
                   </>
                 ) : (
                   <>
-                    {aiEditMode === 'ask' ? <MessageSquare className="w-4 h-4 mr-2" /> : <Bot className="w-4 h-4 mr-2" />}
+                    <Bot className="w-4 h-4 mr-2" />
                     AI編集実行
                   </>
                 )}
               </Button>
 
               <div className="text-xs text-gray-400 space-y-1">
-                <p><strong>Askモード:</strong> 具体的な修正依頼を入力</p>
                 <p><strong>Agentモード:</strong> AIが自動で最適化提案</p>
+                <p>• <span className="text-green-400">緑色</span>: 追加される部分</p>
+                <p>• <span className="text-red-400">赤色</span>: 削除される部分</p>
+                <p>• 網掛けなし: 変更されない部分</p>
+                {showDiffPreview && (
+                  <p className="text-yellow-400 mt-2">変更の承認または拒否をしてください</p>
+                )}
               </div>
             </CardContent>
           </Card>

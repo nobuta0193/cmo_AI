@@ -16,17 +16,17 @@ export function StageContent({ projectId, stage, onStageComplete }: StageContent
   const renderStageContent = () => {
     switch (stage) {
       case 1:
-        return <InitialDataStage key={`${projectId}-stage-1`} projectId={projectId} onComplete={onStageComplete} />;
+        return <InitialDataStage projectId={projectId} onComplete={onStageComplete} />;
       case 2:
-        return <ProductSummaryStage key={`${projectId}-stage-2`} projectId={projectId} onComplete={onStageComplete} />;
+        return <ProductSummaryStage projectId={projectId} onComplete={onStageComplete} />;
       case 3:
-        return <EducationContentStage key={`${projectId}-stage-3`} projectId={projectId} onComplete={onStageComplete} />;
+        return <EducationContentStage projectId={projectId} onComplete={onStageComplete} />;
       case 4:
-        return <CreativePartsStage key={`${projectId}-stage-4`} projectId={projectId} onComplete={onStageComplete} />;
+        return <CreativePartsStage projectId={projectId} onComplete={onStageComplete} />;
       case 5:
-        return <ScriptGenerationStage key={`${projectId}-stage-5`} projectId={projectId} onComplete={onStageComplete} />;
+        return <ScriptGenerationStage projectId={projectId} onComplete={onStageComplete} />;
       default:
-        return <InitialDataStage key={`${projectId}-stage-default`} projectId={projectId} onComplete={onStageComplete} />;
+        return <InitialDataStage projectId={projectId} onComplete={onStageComplete} />;
     }
   };
 

@@ -199,8 +199,8 @@ export async function GET(
       name: project.name,
       description: project.description || '',
       status: project.status || '初期情報登録',
-      stage: project.stage || 1,
-      totalStages: project.total_stages || 5,
+      stage: Number(project.stage) || 1,
+      totalStages: Number(project.total_stages) || 5,
       createdAt: project.created_at,
       updatedAt: project.updated_at,
       dueDate: project.due_date || project.created_at,
@@ -543,7 +543,7 @@ export async function PATCH(
 
     // リクエストボディを解析
     const body = await request.json();
-    const { name, description, tags } = body;
+    const { name, description, dueDate, assigneeId, tags } = body;
 
     // プロジェクト情報の更新
     const updateData: any = {
@@ -552,6 +552,14 @@ export async function PATCH(
 
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
+    if (dueDate !== undefined) {
+      // 期日が空文字列またはnullの場合はnullを設定、そうでなければISO文字列に変換
+      updateData.due_date = dueDate ? new Date(dueDate).toISOString() : null;
+    }
+    if (assigneeId !== undefined) {
+      // 担当者IDが空文字列またはnullの場合はnullを設定
+      updateData.assigned_to = assigneeId || null;
+    }
 
     const { data: updatedProject, error: updateError } = await supabase
       .from('projects')

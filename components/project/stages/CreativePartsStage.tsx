@@ -8,202 +8,74 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Sparkles, RefreshCw, Edit, Eye, EyeOff, MessageSquare, Bot } from 'lucide-react';
+import { Sparkles, RefreshCw, Edit, Eye, EyeOff, Bot, Check, X, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Components } from 'react-markdown';
 import { createBrowserClient } from '@supabase/ssr';
+import { detectLineDiff, markupDiffForDisplay, generateCleanText, DiffResult } from '@/lib/diff-utils';
 
 interface CreativePartsStageProps {
   projectId: string;
   onComplete: () => void;
 }
 
-const mockCreativeParts = `# クリエイティブパーツ
 
-## 悩み指摘フレーズ
+// 差分表示用のカスタムコンポーネント
+const DiffDisplay = ({ diffResult }: { diffResult: DiffResult }) => {
+  return (
+    <div className="space-y-1">
+      {diffResult.chunks.map((chunk, index) => {
+        let className = "";
+        let prefix = "";
+        
+        switch (chunk.type) {
+          case 'added':
+            className = "bg-green-100/20 border-l-4 border-green-400 text-green-200 pl-4 py-1";
+            prefix = "+ ";
+            break;
+          case 'removed':
+            className = "bg-red-100/20 border-l-4 border-red-400 text-red-200 pl-4 py-1 line-through";
+            prefix = "- ";
+            break;
+          case 'unchanged':
+            className = "";
+            prefix = "";
+            break;
+        }
+        
+        return (
+          <div key={index} className={className}>
+            {prefix}{chunk.content}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
-### 身体的な悩み
-- "最近、なんだか疲れやすくなったと感じませんか？"
-- "階段を上るだけで息切れしてしまう..."
-- "朝起きても疲れが取れていない"
-- "風邪をひきやすくなった気がする"
-- "関節や筋肉が痛むことが増えた"
-
-### 精神的な悩み
-- "なんとなく気分が落ち込みがち"
-- "やる気が出ない日が続いている"
-- "集中力が続かない"
-- "イライラしやすくなった"
-- "夜なかなか眠れない"
-
-### 生活習慣の悩み
-- "外に出る機会が減った"
-- "リモートワークで日光を浴びない"
-- "魚を食べる機会が少ない"
-- "栄養バランスが気になる"
-- "健康管理が後回しになっている"
-
-## ターゲット属性指定
-
-### メインターゲット
-- **30-50代の働く女性**
-  - デスクワーク中心の生活
-  - 家事・育児で忙しい
-  - 自分の健康は後回しになりがち
-  - 美容と健康への意識は高い
-
-### サブターゲット
-- **健康意識の高い40-60代男性**
-  - 管理職で責任が重い
-  - 運動不足を自覚している
-  - 将来の健康不安を抱えている
-  - 効率的な健康管理を求めている
-
-### 共通属性
-- 年収400万円以上
-- 都市部在住
-- インターネットで情報収集する
-- 品質にこだわりがある
-- 継続的な健康管理に関心がある
-
-## 現在行動否定
-
-### 間違った健康管理
-- **"日焼け止めを塗って外出すれば大丈夫"**
-  → 実は紫外線をカットしすぎてビタミンD不足に
-
-- **"野菜をたくさん食べているから栄養は足りている"**
-  → ビタミンDは野菜にはほとんど含まれていません
-
-- **"サプリメントは必要ない、食事で十分"**
-  → 現代の食生活では必要量の摂取は困難
-
-- **"若いから大丈夫"**
-  → 20代でも8割の人がビタミンD不足
-
-### 一時的な対策の限界
-- **"疲れた時だけ栄養ドリンク"**
-  → 根本的な解決にはならない
-
-- **"週末だけ外出して日光浴"**
-  → 継続的な摂取が必要
-
-- **"安いサプリメントで代用"**
-  → 品質や吸収率に問題がある場合も
-
-## 悩み原因解説
-
-### ビタミンD不足の根本原因
-
-#### 現代社会の構造的問題
-1. **ライフスタイルの変化**
-   - リモートワークの普及
-   - 室内娯楽の増加
-   - 移動手段の変化（車・電車中心）
-   - 日照時間の減少（都市部の高層建築）
-
-2. **食生活の変化**
-   - 魚離れの進行（特に若年層）
-   - 加工食品・外食の増加
-   - 伝統的な日本食離れ
-   - 栄養知識の不足
-
-3. **健康意識の盲点**
-   - 紫外線対策の過度な徹底
-   - ビタミンDの重要性の認知不足
-   - 「日本人は魚を食べるから大丈夫」という思い込み
-   - 症状の軽視（「年齢のせい」と片付ける）
-
-#### 見えない健康リスク
-- **骨密度の低下**: 自覚症状なく進行
-- **免疫力の低下**: 風邪をひきやすくなる
-- **メンタルヘルスへの影響**: うつ症状の悪化
-- **筋力低下**: 転倒リスクの増加
-
-### なぜ今まで気づかなかったのか
-- 症状が緩やかで気づきにくい
-- 他の原因（ストレス、加齢）と混同しやすい
-- 血液検査でビタミンD値を測る機会が少ない
-- 医療機関でも見過ごされがち
-
-## 商品コンセプト説明
-
-### 「太陽のビタミン」を手軽に
-
-#### コンセプトの核心
-**"現代人に不足しがちな太陽の恵みを、1粒に凝縮"**
-
-- 忙しい現代人でも続けられる手軽さ
-- 科学的根拠に基づいた最適な配合
-- 安心・安全な国内製造
-- コストパフォーマンスの高さ
-
-#### 他社との差別化ポイント
-
-1. **吸収率へのこだわり**
-   - 独自製法により吸収率30%向上
-   - ビタミンD3の採用（D2より効果的）
-   - 最適なタイミングでの摂取をサポート
-
-2. **品質管理の徹底**
-   - GMP認定工場での製造
-   - 第三者機関による品質検査
-   - 無添加処方による安全性
-
-3. **継続しやすい設計**
-   - 小粒で飲みやすい
-   - 1日1粒の簡単摂取
-   - 持ち運びに便利なボトル
-
-#### 提供価値の明確化
-- **健康価値**: 骨・免疫・メンタルの総合サポート
-- **時間価値**: 1日1粒、10秒で完了
-- **経済価値**: 1日約33円の高コストパフォーマンス
-- **安心価値**: 国内製造・品質保証・返金保証
-
-### ブランドメッセージ
-**"あなたの毎日に、太陽の力を"**
-
-- 現代人の生活に寄り添う
-- 科学的根拠に基づく信頼性
-- 継続可能な健康習慣の提案
-- 未来の健康への投資
-
-## 感情訴求ポイント
-
-### ポジティブな未来像
-- "毎朝スッキリ目覚める自分"
-- "疲れ知らずで活動的な毎日"
-- "家族と元気に過ごす時間"
-- "自信を持って鏡を見られる"
-- "将来への健康不安が軽減"
-
-### 緊急性の演出
-- "今始めないと、不足はさらに深刻化"
-- "冬に向けて今から対策を"
-- "症状が出る前の予防が重要"
-- "限定キャンペーンは今だけ"
-
-### 社会的証明
-- "50万人が選んだ信頼"
-- "医療従事者の92%が推奨"
-- "リピート率85%の満足度"
-- "専門家も認める品質"`;
+// 標準のMarkdownコンポーネント（差分表示なし）
+const standardMarkdownComponents: Components = {};
 
 export function CreativePartsStage({ projectId, onComplete }: CreativePartsStageProps) {
   const [content, setContent] = useState('');
+  const [originalContent, setOriginalContent] = useState('');
   const [regenerateLoading, setRegenerateLoading] = useState(false);
   const [saveProgressLoading, setSaveProgressLoading] = useState(false);
   const [completeStageLoading, setCompleteStageLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [aiEditLoading, setAiEditLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
-  const [aiEditMode, setAiEditMode] = useState<'ask' | 'agent'>('ask');
+  const [aiEditMode, setAiEditMode] = useState<'agent'>('agent');
   const [aiEditPrompt, setAiEditPrompt] = useState('');
   const [initialLoading, setInitialLoading] = useState(true);
   const [contentId, setContentId] = useState<string | null>(null);
+  const [pendingChanges, setPendingChanges] = useState<string | null>(null);
+  const [diffResult, setDiffResult] = useState<DiffResult | null>(null);
+  const [showDiffPreview, setShowDiffPreview] = useState(false);
   const { toast } = useToast();
 
   const supabase = createBrowserClient(
@@ -257,19 +129,121 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
 
 
   const handleRegenerate = async () => {
+    if (!projectId) {
+      toast({
+        title: "エラー",
+        description: "プロジェクトIDが見つかりません。",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setRegenerateLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setContent(mockCreativeParts);
+      const response = await fetch(`/api/projects/${projectId}/creative-parts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'クリエイティブパーツの生成に失敗しました';
+        let errorDetails = null;
+        
+        try {
+          // レスポンスのテキストを取得
+          const responseText = await response.text();
+          
+          // JSONとしてパース
+          if (responseText) {
+            try {
+              errorDetails = JSON.parse(responseText);
+              errorMessage = errorDetails.error || errorMessage;
+            } catch (jsonError) {
+              console.error('JSON parse error:', jsonError);
+              errorMessage = responseText || errorMessage;
+            }
+          }
+        } catch (parseError) {
+          console.error('Error parsing error response:', parseError);
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        
+        // 400エラー（バリデーションエラー）の場合は、トーストで表示してreturn
+        if (response.status === 400) {
+          // エラーメッセージに応じてタイトルを調整
+          let errorTitle = "生成エラー";
+          
+          // 一次情報が必要なエラーの場合、より具体的なタイトルを設定
+          if (errorMessage.includes('一次情報が必要です') || 
+              errorMessage.includes('初期データ') || 
+              errorMessage.includes('商品情報サマリー') || 
+              errorMessage.includes('教育コンテンツサマリー')) {
+            errorTitle = "一次情報が必要です";
+          }
+          
+          toast({
+            title: errorTitle,
+            description: errorMessage,
+            variant: "destructive",
+          });
+          return; // エラー画面を表示せずに処理を終了
+        }
+        
+        // 400以外のエラーの場合のみ詳細ログを出力
+        console.error('API Error Details:', {
+          status: response.status,
+          statusText: response.statusText,
+          responseText: errorDetails ? JSON.stringify(errorDetails) : 'No response text',
+          errorDetails: errorDetails,
+          url: response.url
+        });
+        
+        // 400以外のエラーの場合は例外をthrow（エラー画面表示）
+        throw new Error(errorMessage);
+      }
+
+      const responseText = await response.text();
+      
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (jsonError) {
+        console.error('Error parsing success response:', jsonError);
+        throw new Error('APIレスポンスの解析に失敗しました');
+      }
+      
+      if (!result || !result.content) {
+        console.error('Invalid result structure:', result);
+        throw new Error('APIから有効なレスポンスが返されませんでした');
+      }
+
+      setContent(result.content);
+      setContentId(result.contentId);
       
       toast({
         title: content ? "再生成完了" : "生成完了",
         description: content ? "クリエイティブパーツを再生成しました。" : "クリエイティブパーツを生成しました。",
       });
     } catch (error) {
+      console.error('Creative parts generation error:', error);
+      // エラーメッセージに応じてタイトルを調整
+      let errorTitle = content ? "再生成エラー" : "生成エラー";
+      let errorDescription = error instanceof Error ? error.message : (content ? "再生成に失敗しました。" : "生成に失敗しました。");
+      
+      // 一次情報が必要なエラーの場合、より具体的なタイトルを設定
+      if (errorDescription.includes('一次情報が必要です') || 
+          errorDescription.includes('初期データ') || 
+          errorDescription.includes('商品情報サマリー') || 
+          errorDescription.includes('教育コンテンツサマリー')) {
+        errorTitle = "一次情報が必要です";
+      }
+      
       toast({
-        title: content ? "再生成エラー" : "生成エラー",
-        description: content ? "再生成に失敗しました。" : "生成に失敗しました。",
+        title: errorTitle,
+        description: errorDescription,
         variant: "destructive",
       });
     } finally {
@@ -347,28 +321,155 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
       return;
     }
 
+    if (!content.trim()) {
+      toast({
+        title: "編集対象がありません",
+        description: "先にコンテンツを生成してください。",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setAiEditLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const response = await fetch('/api/text-edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: content,
+          instruction: aiEditPrompt
+        })
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'AI編集に失敗しました';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          console.error('Error parsing error response:', parseError);
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
       
-      // TODO: Implement AI editing API call
-      const editedContent = content + '\n\n<!-- AI編集が適用されました -->';
-      setContent(editedContent);
+      if (!result || !result.editedContent) {
+        throw new Error('APIから有効なレスポンスが返されませんでした');
+      }
+      
+      // 差分を検出
+      const diff = detectLineDiff(content, result.editedContent);
+      
+      if (!diff.hasChanges) {
+        toast({
+          title: "変更なし",
+          description: "AIによる変更は検出されませんでした。",
+        });
+        setAiEditPrompt('');
+        return;
+      }
+      
+      // 変更を保留状態にして承認待ちにする
+      setOriginalContent(content);
+      setPendingChanges(result.editedContent);
+      setDiffResult(diff);
+      setShowDiffPreview(true);
       
       toast({
         title: "AI編集完了",
-        description: `${aiEditMode === 'ask' ? 'Ask' : 'Agent'}モードで編集を適用しました。`,
+        description: "変更内容を確認して承認または拒否してください。",
       });
       
       setAiEditPrompt('');
     } catch (error) {
+      console.error('AI edit error:', error);
       toast({
         title: "AI編集エラー",
-        description: "編集に失敗しました。",
+        description: error instanceof Error ? error.message : "編集に失敗しました。",
         variant: "destructive",
       });
     } finally {
       setAiEditLoading(false);
+    }
+  };
+
+  const handleApproveChanges = () => {
+    if (pendingChanges && diffResult) {
+      const cleanContent = generateCleanText(diffResult.chunks);
+      setContent(cleanContent);
+      setPendingChanges(null);
+      setDiffResult(null);
+      setShowDiffPreview(false);
+      setOriginalContent('');
+      
+      toast({
+        title: "変更を承認",
+        description: "AI編集の変更が適用されました。",
+      });
+    }
+  };
+
+  const handleRejectChanges = () => {
+    setPendingChanges(null);
+    setDiffResult(null);
+    setShowDiffPreview(false);
+    setOriginalContent('');
+    
+    toast({
+      title: "変更を拒否",
+      description: "元のコンテンツを維持します。",
+    });
+  };
+
+  const handleDelete = async () => {
+    if (!content.trim()) {
+      toast({
+        title: "削除対象がありません",
+        description: "削除するコンテンツがありません。",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setDeleteLoading(true);
+    try {
+      // コンテンツをクリア
+      setContent('');
+      setContentId(null);
+      setIsEditing(false);
+      setPendingChanges(null);
+      setDiffResult(null);
+      setShowDiffPreview(false);
+      setOriginalContent('');
+
+      // データベースからも削除
+      if (contentId) {
+        const { error: deleteError } = await supabase
+          .from('project_contents')
+          .delete()
+          .eq('id', contentId);
+
+        if (deleteError) {
+          console.error('Failed to delete content:', deleteError);
+          // エラーが発生しても、フロントエンドの状態はクリアしたままにする
+        }
+      }
+
+      toast({
+        title: "削除完了",
+        description: "クリエイティブパーツを削除しました。",
+      });
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast({
+        title: "削除エラー",
+        description: "削除に失敗しました。もう一度お試しください。",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -608,6 +709,22 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
                     <RefreshCw className={`w-4 h-4 mr-2 ${regenerateLoading ? 'animate-spin' : ''}`} />
                     {content ? '再生成' : 'コンテンツを生成'}
                   </Button>
+                  {content && (
+                    <Button
+                      size="sm"
+                      onClick={handleDelete}
+                      disabled={deleteLoading}
+                      variant="outline"
+                      className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                    >
+                      {deleteLoading ? (
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4 mr-2" />
+                      )}
+                      削除
+                    </Button>
+                  )}
                   {isEditing && (
                     <Button
                       size="sm"
@@ -624,12 +741,53 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
               </div>
 
               <div className="border border-white/10 rounded-lg p-4 bg-white/5">
-                {showPreview ? (
+                {showDiffPreview && diffResult ? (
+                  <div>
+                    <div className="flex items-center justify-between mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <Bot className="w-5 h-5 text-blue-400" />
+                        <span className="text-blue-300 font-medium">AI編集の差分を確認</span>
+                      </div>
+                      <div className="flex space-x-2">
+                        <Button
+                          onClick={handleApproveChanges}
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <Check className="w-4 h-4 mr-1" />
+                          承認
+                        </Button>
+                        <Button
+                          onClick={handleRejectChanges}
+                          size="sm"
+                          variant="outline"
+                          className="border-red-500/50 text-red-300 hover:bg-red-500/10"
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          拒否
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="prose prose-invert max-w-none">
+                      <DiffDisplay diffResult={diffResult} />
+                    </div>
+                    <div className="mt-4 p-3 bg-gray-500/10 border border-gray-500/20 rounded-lg text-sm text-gray-400">
+                      <p><span className="text-green-400">緑色</span>: 追加された部分</p>
+                      <p><span className="text-red-400">赤色</span>: 削除された部分</p>
+                      <p>網掛けなし: 変更されない部分</p>
+                    </div>
+                  </div>
+                ) : showPreview ? (
                   <div className="prose prose-invert max-w-none">
                     {content ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {content}
-                      </ReactMarkdown>
+                      <div>
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={standardMarkdownComponents}
+                        >
+                          {content}
+                        </ReactMarkdown>
+                      </div>
                     ) : (
                       <div className="text-center py-8 text-gray-400">
                         <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -674,38 +832,11 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-white">編集モード</Label>
-                <Select value={aiEditMode} onValueChange={(value: 'ask' | 'agent') => setAiEditMode(value)}>
-                  <SelectTrigger className="bg-white/5 border-white/20 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ask">
-                      <div className="flex items-center">
-                        <MessageSquare className="w-4 h-4 mr-2" />
-                        Askモード（Q&A形式）
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="agent">
-                      <div className="flex items-center">
-                        <Bot className="w-4 h-4 mr-2" />
-                        Agentモード（自動修正）
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
                 <Label className="text-white">編集指示</Label>
                 <Textarea
                   value={aiEditPrompt}
                   onChange={(e) => setAiEditPrompt(e.target.value)}
-                  placeholder={
-                    aiEditMode === 'ask' 
-                      ? "例: ターゲット設定をもっと具体的にしてください" 
-                      : "例: より感情的な訴求に調整"
-                  }
+                  placeholder="例: ターゲット設定をもっと具体的にしてください"
                   className="bg-white/5 border-white/20 text-white placeholder-gray-400 min-h-[100px]"
                   rows={4}
                 />
@@ -713,7 +844,7 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
 
               <Button
                 onClick={handleAiEdit}
-                disabled={aiEditLoading || !aiEditPrompt.trim()}
+                disabled={aiEditLoading || !aiEditPrompt.trim() || showDiffPreview}
                 className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0"
               >
                 {aiEditLoading ? (
@@ -723,15 +854,20 @@ export function CreativePartsStage({ projectId, onComplete }: CreativePartsStage
                   </>
                 ) : (
                   <>
-                    {aiEditMode === 'ask' ? <MessageSquare className="w-4 h-4 mr-2" /> : <Bot className="w-4 h-4 mr-2" />}
+                    <Bot className="w-4 h-4 mr-2" />
                     AI編集実行
                   </>
                 )}
               </Button>
 
               <div className="text-xs text-gray-400 space-y-1">
-                <p><strong>Askモード:</strong> 具体的な修正依頼を入力</p>
                 <p><strong>Agentモード:</strong> AIが自動で最適化提案</p>
+                <p>• <span className="text-green-400">緑色</span>: 追加される部分</p>
+                <p>• <span className="text-red-400">赤色</span>: 削除される部分</p>
+                <p>• 網掛けなし: 変更されない部分</p>
+                {showDiffPreview && (
+                  <p className="text-yellow-400 mt-2">変更の承認または拒否をしてください</p>
+                )}
               </div>
             </CardContent>
           </Card>

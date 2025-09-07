@@ -21,8 +21,10 @@ export function WorkflowStepper({ stages, currentStage, completedStage, onStageC
     if (completedStage >= 6) {
       return 'completed';
     }
-    if (stageId < completedStage) return 'completed';
-    if (stageId === completedStage) return 'current';
+    // completedStageは完了したステージ数なので、stageId <= completedStageなら完了
+    if (stageId <= completedStage) return 'completed';
+    // 現在のステージはcurrentStageで判定
+    if (stageId === currentStage) return 'current';
     return 'next'; // すべてのステージを次のステップとして表示
   };
 

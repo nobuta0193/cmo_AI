@@ -213,6 +213,81 @@ export interface Database {
           updated_at?: string
         }
       }
+      initial_data: {
+        Row: {
+          id: string
+          project_id: string
+          title: string
+          content: string
+          data_type: string
+          source_url: string | null
+          file_path: string | null
+          created_at: string
+          updated_at: string
+          created_by: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          title: string
+          content: string
+          data_type: string
+          source_url?: string | null
+          file_path?: string | null
+          created_at?: string
+          updated_at?: string
+          created_by: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          title?: string
+          content?: string
+          data_type?: string
+          source_url?: string | null
+          file_path?: string | null
+          created_at?: string
+          updated_at?: string
+          created_by?: string
+        }
+      }
+      initial_data_tags: {
+        Row: {
+          id: string
+          initial_data_id: string
+          tag_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          initial_data_id: string
+          tag_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          initial_data_id?: string
+          tag_id?: string
+          created_at?: string
+        }
+      }
+      project_tags: {
+        Row: {
+          project_id: string
+          tag_id: string
+          created_at: string
+        }
+        Insert: {
+          project_id: string
+          tag_id: string
+          created_at?: string
+        }
+        Update: {
+          project_id?: string
+          tag_id?: string
+          created_at?: string
+        }
+      }
       tags: {
         Row: {
           id: string

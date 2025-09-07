@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Clock, Users, MoreVertical, Edit2, Copy, Trash2, Play, Calendar, User } from 'lucide-react';
+import { EditProjectDialog } from './EditProjectDialog';
 
 export interface Project {
   id: string;
@@ -40,15 +41,25 @@ export interface Project {
 interface ProjectCardProps {
   project: Project;
   viewMode?: 'large' | 'medium' | 'small' | 'list';
+  onProjectUpdated?: () => void;
 }
 
-export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
+export function ProjectCard({ project, viewMode = 'large', onProjectUpdated }: ProjectCardProps) {
   const router = useRouter();
+  const [showEditDialog, setShowEditDialog] = useState(false);
   // 進捗は「完了したステージ数 / 総ステージ数」で計算
-  // project.stageは現在実行中のステージなので、完了ステージ数は stage - 1
-  // ただし、stage >= 6（全完了）の場合は全ステージ完了とする
-  const completedStages = project.stage >= 6 ? project.totalStages : Math.max(0, project.stage - 1);
-  const progress = (completedStages / project.totalStages) * 100;
+  // project.stageは現在のステージ番号（1-5）
+  // WorkflowStepperと同じロジック：現在のステージより小さいステージは完了
+  // stage=1の場合、完了ステージ数は0（1より小さいステージはない）
+  // stage=2の場合、完了ステージ数は1（ステージ1が完了）
+  // stage >= 6（全完了）の場合は全ステージ完了とする
+  
+  // 明示的に数値変換を行う
+  const currentStage = Number(project.stage) || 1;
+  const totalStages = Number(project.totalStages) || 5;
+  const completedStages = currentStage >= 6 ? totalStages : Math.max(0, currentStage - 1);
+  const progress = (completedStages / totalStages) * 100;
+  
 
   const VariantInfo = ({ variants }: { variants: ProjectCardProps['project']['scriptVariants'] }) => {
     if (!variants) return null;
@@ -73,18 +84,6 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
     );
   };
 
-  const getStageColor = (stage: number, totalStages: number) => {
-    const progress = stage / totalStages;
-    if (progress >= 1) {
-      return 'bg-green-500/20 text-green-300 border-green-500/30';
-    } else if (progress >= 0.6) {
-      return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-    } else if (progress >= 0.4) {
-      return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
-    } else {
-      return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
-    }
-  };
 
   const handleOpenProject = () => {
     router.push(`/project/${project.id}`);
@@ -98,6 +97,14 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
   const handleDeleteProject = () => {
     // TODO: Implement project deletion
     console.log('Delete project:', project.id);
+  };
+
+  const handleEditProject = () => {
+    setShowEditDialog(true);
+  };
+
+  const handleProjectUpdated = () => {
+    onProjectUpdated?.();
   };
 
   // List view - horizontal layout
@@ -123,14 +130,9 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
               )}
             </div>
 
-            <div className="flex items-center space-x-4">
-              <Badge className={getStageColor(project.stage, project.totalStages) + " text-xs"}>
-                ステージ {project.stage}/{project.totalStages}
-                {project.scriptVariants && project.stage === project.totalStages && ` (${project.scriptVariants.count}バリエーション)`}
-              </Badge>
-              
-              <div className="text-xs text-gray-400 min-w-[80px]">
-                {completedStages}/{project.totalStages} 完了
+             <div className="flex items-center space-x-4">
+               <div className="text-xs text-gray-400 min-w-[80px]">
+                {completedStages}/{totalStages} 完了
                 {project.scriptVariants?.selectedVariant && (
                   <span className="ml-1 text-green-400">| 選択: {project.scriptVariants.selectedVariant}</span>
                 )}
@@ -180,26 +182,25 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
                   <Play className="mr-2 h-3 w-3" />
                   開く
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleDuplicateProject}>
-                  <Copy className="mr-2 h-3 w-3" />
-                  複製
-                </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDuplicateProject}>
+                <Copy className="mr-2 h-3 w-3" />
+                複製
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleEditProject}>
+                <Edit2 className="mr-2 h-3 w-3" />
+                編集
+              </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-3">
-          <Badge className={getStageColor(project.stage, project.totalStages) + " text-xs"}>
-            ステージ {project.stage}/{project.totalStages}
-            {project.scriptVariants && project.stage === project.totalStages && ` (${project.scriptVariants.count}バリエーション)`}
-          </Badge>
-          
-          <div className="space-y-1">
+         <CardContent className="space-y-3">
+           <div className="space-y-1">
             <div className="flex items-center justify-between text-xs">
               <span className="text-gray-400">進捗</span>
               <span className="text-white">
-                {completedStages}/{project.totalStages}
+                {completedStages}/{totalStages}
                 {project.scriptVariants?.selectedVariant && (
                   <span className="ml-1 text-green-400">| 選択: {project.scriptVariants.selectedVariant}</span>
                 )}
@@ -256,6 +257,11 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
                   <Copy className="mr-2 h-4 w-4" />
                   複製
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleEditProject}>
+                  <Edit2 className="mr-2 h-4 w-4" />
+                  編集
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleDeleteProject} className="text-red-600">
                   <Trash2 className="mr-2 h-4 w-4" />
                   削除
@@ -275,20 +281,16 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
           )}
         </CardHeader>
 
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Badge className={getStageColor(project.stage, project.totalStages)}>
-                ステージ {project.stage}/{project.totalStages}
-                {project.scriptVariants && project.stage === project.totalStages && ` (${project.scriptVariants.count}バリエーション)`}
-              </Badge>
-              <span className="text-xs text-gray-400">
-                {completedStages}/{project.totalStages} 完了
-                {project.scriptVariants?.selectedVariant && (
-                  <span className="ml-1 text-green-400">| 選択: {project.scriptVariants.selectedVariant}</span>
-                )}
-              </span>
-            </div>
+         <CardContent className="space-y-4">
+           <div className="space-y-2">
+           <div className="flex items-center justify-center">
+             <span className="text-xs text-gray-400">
+              {completedStages}/{totalStages} 完了
+              {project.scriptVariants?.selectedVariant && (
+                <span className="ml-1 text-green-400">| 選択: {project.scriptVariants.selectedVariant}</span>
+              )}
+            </span>
+           </div>
             <Progress value={progress} className="h-2" />
             {project.scriptVariants && project.status === '広告台本生成完了' && (
               <VariantInfo variants={project.scriptVariants} />
@@ -342,7 +344,7 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
                 <Copy className="mr-2 h-4 w-4" />
                 複製
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={handleEditProject}>
                 <Edit2 className="mr-2 h-4 w-4" />
                 編集
               </DropdownMenuItem>
@@ -367,20 +369,16 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Status and Progress */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Badge className={getStageColor(project.stage, project.totalStages)}>
-              ステージ {project.stage}/{project.totalStages}
-              {project.scriptVariants && project.stage === project.totalStages && ` (${project.scriptVariants.count}バリエーション)`}
-            </Badge>
-            <span className="text-xs text-gray-400">
-              {completedStages}/{project.totalStages} 完了
+         {/* Status and Progress */}
+         <div className="space-y-2">
+           <div className="flex items-center justify-center">
+             <span className="text-xs text-gray-400">
+              {completedStages}/{totalStages} 完了
               {project.scriptVariants?.selectedVariant && (
                 <span className="ml-1 text-green-400">| 選択: {project.scriptVariants.selectedVariant}</span>
               )}
             </span>
-          </div>
+           </div>
           <Progress value={progress} className="h-2" />
           {project.scriptVariants && project.status === '広告台本生成完了' && (
             <VariantInfo variants={project.scriptVariants} />
@@ -424,6 +422,14 @@ export function ProjectCard({ project, viewMode = 'large' }: ProjectCardProps) {
           <Play className="w-4 h-4 ml-2" />
         </Button>
       </CardContent>
+
+      {/* 編集ダイアログ */}
+      <EditProjectDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        project={project}
+        onProjectUpdated={handleProjectUpdated}
+      />
     </Card>
   );
 }
